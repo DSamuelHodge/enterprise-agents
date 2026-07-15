@@ -1,0 +1,31 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+onlyBuiltDependencies:
+  - "@google/genai"
+  - "@mongodb-js/zstd"
+  - "@swc/core"
+  - "bufferutil"
+  - "core-js"
+  - "core-js-pure"
+  - "esbuild"
+  - "keccak"
+  - "node-liblzma"
+  - "protobufjs"
+  - "sharp"
+  - "utf-8-validate"
+  - "workerd"
+allowBuilds:
+  '@google/genai': true
+  '@mongodb-js/zstd': true
+  '@swc/core': true
+  bufferutil: true
+  core-js: true
+  core-js-pure: true
+  esbuild: true
+  keccak: true
+  node-liblzma: true
+  protobufjs: true
+  sharp: true
+  utf-8-validate: true
+  workerd: true

@@ -1,0 +1,87 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "boilerplate-backend",
+  "compatibility_date": "2026-06-01",
+  // Flue's runtime uses Node.js APIs — required by the Cloudflare target.
+  "compatibility_flags": ["nodejs_compat"],
+
+  // ── Durable Object migrations ─────────────────────────────────────────────
+  // Flue generates one Durable Object class per discovered agent/workflow:
+  //   src/agents/task.ts                 -> FlueTaskAgent
+  //   src/workflows/evaluate-metric.ts   -> FlueEvaluateMetricWorkflow
+  //   src/workflows/retroactive-metrics.ts -> FlueRetroactiveMetricsWorkflow
+  //   src/workflows/dataset-ingest.ts    -> FlueDatasetIngestWorkflow
+  //   src/workflows/scheduled-task.ts    -> FlueScheduledTaskWorkflow
+  // FlueRegistry is Flue-internal and must be in the initial migration.
+  // NOTE: never rewrite/reorder deployed migration entries — append new tags.
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "FlueRegistry",
+        "FlueTaskAgent",
+        "FlueEvaluateMetricWorkflow",
+        "FlueRetroactiveMetricsWorkflow",
+        "FlueDatasetIngestWorkflow",
+        "FlueScheduledTaskWorkflow"
+      ]
+    }
+  ],
+
+  // ── Application-owned bindings only ──────────────────────────────────────
+  // Do NOT hand-author generated FLUE_* bindings here; Flue merges its own
+  // bindings at build time.
+
+  // Core relational data (replaces PostgreSQL).
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "boilerplate-db",
+      "database_id": "ad5bc9ec-dc74-46f0-9a02-8c2fc85e417b",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  // Time-series / analytics writes (replaces ClickHouse MergeTree tables).
+  // Reads go through the Analytics Engine SQL API (see src/analytics/engine.ts).
+  "analytics_engine_datasets": [
+    { "binding": "TASK_METRICS", "dataset": "task_metrics" },
+    { "binding": "TASK_TRACES", "dataset": "task_traces" },
+    { "binding": "PIPELINE_EVENTS", "dataset": "pipeline_events" }
+  ],
+
+  // Semantic search over dataset events (replaces ClickHouse embedding Array(Float32)).
+  "vectorize": [
+    { "binding": "VECTORIZE", "index_name": "dataset-events" }
+  ],
+
+  // Dataset source files (uploads previously handled by the embed worker's filesystem).
+  "r2_buckets": [
+    { "binding": "FILES", "bucket_name": "boilerplate-files" }
+  ],
+
+  // Workers AI for embeddings in the dataset-ingest workflow.
+  "ai": { "binding": "AI" },
+
+  // Schedule scanner: replaces Temporal/Restack schedules. Every minute the
+  // scheduled() handler in src/cloudflare.ts scans D1 for due task schedules
+  // and invokes the scheduled-task workflow per occurrence.
+  "triggers": { "crons": ["* * * * *"] },
+
+  "vars": {
+    // Default model for the task agent harness. Per-agent model selection from
+    // the agents table is delivered via task briefing (see src/agents/task.ts).
+    "DEFAULT_MODEL": "openai/gpt-5.2",
+    "FRONTEND_URL": "http://localhost:3000"
+  }
+
+  // Secrets (set with `wrangler secret put <NAME>`):
+  //   AUTH_JWT_SECRET       — HS256 signing key for session tokens
+  //   CF_ACCOUNT_ID         — for Analytics Engine SQL API reads
+  //   CF_ANALYTICS_TOKEN    — API token with Account Analytics:Read
+  //   OPENAI_API_KEY        — fallback LLM key (workspaces may override via
+  //                           encrypted bearer tokens in user_oauth_connections)
+  //   SLACK_SIGNING_SECRET  — Slack channel ingress verification
+  //   SLACK_CLIENT_ID / SLACK_CLIENT_SECRET — Slack OAuth install flow
+  //   TOKEN_ENCRYPTION_KEY  — AES-GCM key (base64) for OAuth/bearer tokens at rest
+}

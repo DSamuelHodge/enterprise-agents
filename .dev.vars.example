@@ -1,0 +1,7 @@
+AUTH_JWT_SECRET=replace-with-a-long-random-dev-secret
+TOKEN_ENCRYPTION_KEY=replace-with-32-random-bytes-base64url
+CF_ACCOUNT_ID=replace-for-analytics-sql
+CF_ANALYTICS_TOKEN=replace-for-analytics-sql
+OPENAI_API_KEY=
+FRONTEND_URL=http://localhost:3000
+
