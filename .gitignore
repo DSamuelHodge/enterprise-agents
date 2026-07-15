@@ -6,6 +6,8 @@ node_modules/
 dist/
 .next/
 **/.next/
+.open-next/
+**/.open-next/
 out/
 coverage/
 .turbo/

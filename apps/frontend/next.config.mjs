@@ -1,10 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ["@workspace/ui", "shiki"],
-  serverExternalPackages: ["@restackio/ai"],
-
-  // Optimize for Docker builds
-  output: "standalone",
 
   // Performance optimizations
   compiler: {
@@ -38,6 +34,9 @@ const nextConfig = {
         "ai.restack.io",
         "*.restack.it",
         "localhost:3000",
+        "localhost:3001",
+        "app.hodgeluke.com",
+        "*.workers.dev",
       ],
     },
   },

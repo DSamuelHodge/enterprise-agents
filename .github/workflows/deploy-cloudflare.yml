@@ -1,0 +1,52 @@
+name: Deploy Cloudflare
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-cloudflare-main
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and deploy Workers
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      FLUE_API_URL: https://boilerplate-backend.dshodge2020.workers.dev/api
+      NEXT_PUBLIC_FLUE_API_URL: https://boilerplate-backend.dshodge2020.workers.dev/api
+      NEXT_PUBLIC_SLACK_BOT_URL: https://boilerplate-backend.dshodge2020.workers.dev
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck backend
+        run: pnpm typecheck
+
+      - name: Typecheck frontend
+        run: pnpm typecheck:frontend
+
+      - name: Build and deploy Flue backend
+        run: pnpm deploy:backend
+
+      - name: Build and deploy Next.js frontend
+        run: pnpm deploy:frontend

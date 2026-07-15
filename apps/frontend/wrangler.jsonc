@@ -1,0 +1,23 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "enterprise-agents-frontend",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-07-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "routes": [
+    {
+      "pattern": "app.hodgeluke.com",
+      "custom_domain": true
+    }
+  ],
+  "vars": {
+    "FLUE_API_URL": "https://boilerplate-backend.dshodge2020.workers.dev/api",
+    "NEXT_PUBLIC_FLUE_API_URL": "https://boilerplate-backend.dshodge2020.workers.dev/api",
+    "NEXT_PUBLIC_SLACK_BOT_URL": "https://boilerplate-backend.dshodge2020.workers.dev"
+  }
+}
