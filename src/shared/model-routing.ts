@@ -1,4 +1,3 @@
-import { registerProvider } from '@flue/runtime';
 import { json } from '../db/client.ts';
 import { createMcpServer, listMcpServers, listOauthConnections, upsertOauthToken } from '../db/repos/agents.ts';
 import type { UserOauthConnectionRow } from '../db/types.ts';
@@ -208,6 +207,7 @@ export async function resolveWorkspaceModelSpecifier(
   if (!baseUrl || !api) return normalized;
 
   const namespacedProviderId = workspaceProviderId(workspaceId, providerId);
+  const { registerProvider } = await import('@flue/runtime');
   registerProvider(namespacedProviderId, {
     api: api as never,
     baseUrl,
