@@ -165,6 +165,8 @@ export async function executeFlueWorkflow(workflowName: string, input: WorkflowI
       return request(`/workspaces/${workspaceId(input)}/agents/${agentId(input)}`);
     case "AgentsGetVersionsWorkflow":
       return request(`/workspaces/${workspaceId(input)}/agents/${agentId(input)}/versions`);
+    case "AgentsGetBuildAgentWorkflow":
+      return request(`/workspaces/${workspaceId(input)}/agents/build-agent`);
     case "AgentsCloneWorkflow":
       return request(`/workspaces/${workspaceId(input)}/agents/${input.source_agent_id || input.agent_id}/clone`, { method: "POST", body: body(input) });
     case "AgentsUpdateWorkflow":
@@ -236,6 +238,10 @@ export async function executeFlueWorkflow(workflowName: string, input: WorkflowI
       return request(`/workspaces/${workspaceId(input)}/tasks`, { method: "POST", body: body(input) });
     case "TasksGetByIdWorkflow":
       return request(`/workspaces/${workspaceId(input)}/tasks/${taskId(input)}`);
+    case "TasksGetBuildSummaryWorkflow":
+      return request(`/workspaces/${workspaceId(input)}/build-tasks/${input.build_task_id || input.task_id}/summary`);
+    case "TasksGetBuildSessionWorkflow":
+      return request(`/workspaces/${workspaceId(input)}/build-tasks/${input.build_task_id || input.task_id}/session`);
     case "TasksUpdateWorkflow":
       return request(`/workspaces/${workspaceId(input)}/tasks/${taskId(input)}`, { method: "PATCH", body: body(input) });
     case "TasksDeleteWorkflow":

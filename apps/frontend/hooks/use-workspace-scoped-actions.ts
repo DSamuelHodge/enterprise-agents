@@ -695,19 +695,19 @@ export function useWorkspaceScopedActions() {
   );
 
   const getBuildAgent = useCallback(async () => {
-    if (!isReady) {
-      return { success: false, error: "Not ready", data: null };
+    if (!isReady || !currentWorkspaceId) {
+      return { success: false, error: "No valid workspace context", data: null };
     }
     try {
       return await executeWorkflow<Agent | null>(
         "AgentsGetBuildAgentWorkflow",
-        {},
+        { workspace_id: currentWorkspaceId },
       );
     } catch (error) {
       console.error("Failed to get build agent:", error);
       return { success: false, error: "Failed to get build agent", data: null };
     }
-  }, [isReady]);
+  }, [currentWorkspaceId, isReady]);
 
   const publishAgent = useCallback(
     async (agentId: string) => {

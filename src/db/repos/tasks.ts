@@ -63,6 +63,16 @@ export function getTasksByParent(db: D1Database, parentTaskId: string) {
   return many<TaskRow>(db, `SELECT * FROM tasks WHERE parent_task_id = ? ORDER BY created_at`, parentTaskId);
 }
 
+export function listTasksByBuildTask(db: D1Database, workspaceId: string, buildTaskId: string) {
+  return many<TaskRow>(
+    db,
+    `SELECT * FROM tasks
+     WHERE workspace_id = ? AND (id = ? OR parent_task_id = ? OR json_extract(task_metadata, '$.build_task_id') = ?)
+     ORDER BY created_at ASC`,
+    workspaceId, buildTaskId, buildTaskId, buildTaskId,
+  );
+}
+
 export function listTasks(
   db: D1Database,
   workspaceId: string,
@@ -221,6 +231,16 @@ export function getDatasetById(db: D1Database, id: string) {
 export function listDatasets(db: D1Database, workspaceId: string) {
   return many<DatasetRow>(
     db, `SELECT * FROM datasets WHERE workspace_id = ? ORDER BY created_at DESC`, workspaceId,
+  );
+}
+
+export function listDatasetsByBuildTask(db: D1Database, workspaceId: string, buildTaskId: string) {
+  return many<DatasetRow>(
+    db,
+    `SELECT * FROM datasets
+     WHERE workspace_id = ? AND build_task_id = ?
+     ORDER BY created_at DESC`,
+    workspaceId, buildTaskId,
   );
 }
 

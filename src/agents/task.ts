@@ -2,14 +2,18 @@ import { defineAgent, defineTool, dispatch } from '@flue/runtime';
 import * as v from 'valibot';
 import type { Env } from '../env.d.ts';
 import { json } from '../db/client.ts';
-import { getAgentById, listSubagents } from '../db/repos/agents.ts';
-import { createTask, getTaskById, getTasksByParent, updateTask, getChannelIntegrationByExternalId } from '../db/repos/tasks.ts';
+import { createAgent, getAgentById, listSubagents } from '../db/repos/agents.ts';
+import { createDataset, createTask, getTaskById, getTasksByParent, updateTask, getChannelIntegrationByExternalId } from '../db/repos/tasks.ts';
 import { assembleMcpTools } from '../shared/mcp.ts';
 import { writeTaskMetric } from '../analytics/engine.ts';
 import { TraceRecorder } from '../analytics/tracing.ts';
 import { decryptSecret } from '../shared/crypto.ts';
 import { slackPostMessage } from '../shared/slack.ts';
 import { resolveWorkspaceModelSpecifier, toThinkingLevel } from '../shared/model-routing.ts';
+
+function toolResult(value: unknown) {
+  return JSON.parse(JSON.stringify(value)) as never;
+}
 
 const BASE_INSTRUCTIONS = `You are a task agent operating inside a workspace platform.
 Each conversation is bound to exactly one task. Your first action on any new
@@ -28,6 +32,7 @@ Operating rules:
 export const task = defineAgent<Env>(async ({ id, env }) => {
   const taskRow = await getTaskById(env.DB, id);
   const agentRow = taskRow ? await getAgentById(env.DB, taskRow.agent_id) : null;
+  const isBuildAgent = agentRow?.name === 'build_agent' || agentRow?.name === 'build';
   return {
     model: taskRow ? await resolveWorkspaceModelSpecifier(env, taskRow.workspace_id, agentRow?.model, env.DEFAULT_MODEL) : env.DEFAULT_MODEL,
     thinkingLevel: toThinkingLevel(agentRow?.reasoning_effort),
@@ -144,6 +149,94 @@ export const task = defineAgent<Env>(async ({ id, env }) => {
         return { ok: true };
       },
     }),
+    ...(isBuildAgent ? [
+      defineTool({
+        name: 'update_build_artifacts',
+        description: 'Update the Build task canvas artifacts: pattern_specs for the flow diagram and view_specs for planned/created table views.',
+        input: v.object({
+          pattern_specs: v.optional(v.unknown()),
+          view_specs: v.optional(v.unknown()),
+          status: v.optional(v.picklist(['in_progress','in_review','completed','failed','closed'])),
+          summary: v.optional(v.string()),
+        }),
+        async run({ input }) {
+          const taskRow = await getTaskById(env.DB, id);
+          if (!taskRow) return toolResult({ ok: false, error: `no task row for ${id}` });
+          const updated = await updateTask(env.DB, id, {
+            status: input.status,
+            viewSpecs: input.view_specs,
+            patternSpecs: input.pattern_specs,
+            agentState: input.summary ? { summary: input.summary, updated_at: new Date().toISOString() } : undefined,
+          });
+          return toolResult({ ok: true, task: updated });
+        },
+      }),
+
+      defineTool({
+        name: 'create_workspace_agent',
+        description: 'Create an agent row for this workspace as part of the approved Build task.',
+        input: v.object({
+          name: v.pipe(v.string(), v.minLength(1)),
+          description: v.optional(v.string()),
+          instructions: v.optional(v.string()),
+          type: v.optional(v.picklist(['interactive','pipeline'])),
+          model: v.optional(v.string()),
+          reasoning_effort: v.optional(v.picklist(['none','minimal','low','medium','high','xhigh'])),
+          team_id: v.optional(v.string()),
+          is_public: v.optional(v.boolean()),
+        }),
+        async run({ input }) {
+          const taskRow = await getTaskById(env.DB, id);
+          if (!taskRow) return toolResult({ ok: false, error: `no task row for ${id}` });
+          try {
+            const agent = await createAgent(env.DB, {
+              workspaceId: taskRow.workspace_id,
+              name: input.name,
+              description: input.description ?? null,
+              instructions: input.instructions ?? null,
+              teamId: input.team_id ?? taskRow.team_id,
+              type: input.type ?? 'interactive',
+              model: input.model,
+              reasoningEffort: input.reasoning_effort,
+              status: 'draft',
+              isPublic: input.is_public ?? false,
+              buildTaskId: taskRow.id,
+            });
+            return toolResult({ ok: true, agent });
+          } catch (error) {
+            return toolResult({ ok: false, error: error instanceof Error ? error.message : String(error) });
+          }
+        },
+      }),
+
+      defineTool({
+        name: 'create_workspace_dataset',
+        description: 'Create a dataset row for this workspace as part of the approved Build task.',
+        input: v.object({
+          name: v.pipe(v.string(), v.minLength(1)),
+          description: v.optional(v.string()),
+          storage_type: v.optional(v.picklist(['analytics_engine','d1'])),
+          storage_config: v.optional(v.unknown()),
+        }),
+        async run({ input }) {
+          const taskRow = await getTaskById(env.DB, id);
+          if (!taskRow) return toolResult({ ok: false, error: `no task row for ${id}` });
+          try {
+            const dataset = await createDataset(env.DB, {
+              workspaceId: taskRow.workspace_id,
+              name: input.name,
+              description: input.description ?? null,
+              storageType: input.storage_type,
+              storageConfig: input.storage_config,
+              buildTaskId: taskRow.id,
+            });
+            return toolResult({ ok: true, dataset });
+          } catch (error) {
+            return toolResult({ ok: false, error: error instanceof Error ? error.message : String(error) });
+          }
+        },
+      }),
+    ] : []),
     ],
   };
 });

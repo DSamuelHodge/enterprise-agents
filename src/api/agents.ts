@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { ApiEnv } from './middleware.ts';
 import { assertMembership } from './middleware.ts';
-import { addSubagent, cloneAgent, createAgent, createAgentTool, createMcpServer, deleteAgent, deleteAgentTool, deleteMcpServer, deleteOauthTokenForWorkspace, getAgentById, getAgentVersions, getMcpServerById, listAgents, listAgentTools, listAvailableSubagents, listMcpServers, listModelProviderConnections, listOauthConnections, listSubagents, removeSubagent, setDefaultToken, toggleSubagent, updateAgent, updateAgentTool, updateMcpServer, upsertOauthToken } from '../db/repos/agents.ts';
+import { addSubagent, cloneAgent, createAgent, createAgentTool, createMcpServer, deleteAgent, deleteAgentTool, deleteMcpServer, deleteOauthTokenForWorkspace, getAgentById, getAgentVersions, getMcpServerById, getOrCreateBuildAgent, listAgents, listAgentTools, listAvailableSubagents, listMcpServers, listModelProviderConnections, listOauthConnections, listSubagents, removeSubagent, setDefaultToken, toggleSubagent, updateAgent, updateAgentTool, updateMcpServer, upsertOauthToken } from '../db/repos/agents.ts';
 import { encryptSecret } from '../shared/crypto.ts';
 import type { AgentRow, ToolType } from '../db/types.ts';
 import { DEFAULT_AGENT_MODEL, DEFAULT_JUDGE_MODEL, MODEL_CATALOG, MODEL_PROVIDER_CATALOG } from '../shared/model-catalog.ts';
@@ -59,6 +59,11 @@ agents.get('/models', (c) => c.json({
 agents.get('/workspaces/:workspaceId/agents', async (c) => {
   const g = await assertMembership(c, c.req.param('workspaceId')); if (g) return g;
   return c.json({ agents: await listAgents(c.env.DB, c.req.param('workspaceId'), { status: c.req.query('status') as AgentRow['status'] | undefined, type: c.req.query('type') as AgentRow['type'] | undefined }) });
+});
+
+agents.get('/workspaces/:workspaceId/agents/build-agent', async (c) => {
+  const g = await assertMembership(c, c.req.param('workspaceId')); if (g) return g;
+  return c.json({ agent: await getOrCreateBuildAgent(c.env.DB, c.req.param('workspaceId')) });
 });
 
 agents.post('/workspaces/:workspaceId/agents', async (c) => {

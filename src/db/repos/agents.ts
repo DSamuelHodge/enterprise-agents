@@ -74,6 +74,16 @@ export function listAgents(
   );
 }
 
+export function listAgentsByBuildTask(db: D1Database, workspaceId: string, buildTaskId: string) {
+  return many<AgentRow>(
+    db,
+    `SELECT * FROM agents
+     WHERE workspace_id = ? AND build_task_id = ?
+     ORDER BY created_at DESC`,
+    workspaceId, buildTaskId,
+  );
+}
+
 /** Versions: root agent + all children sharing that root (agents_get_versions). */
 export function getAgentVersions(db: D1Database, rootAgentId: string) {
   return many<AgentRow>(
@@ -91,6 +101,26 @@ export function resolveAgentByName(db: D1Database, workspaceId: string, name: st
      WHERE workspace_id = ? AND name = ? AND parent_agent_id IS NULL`,
     workspaceId, name,
   );
+}
+
+export async function getOrCreateBuildAgent(db: D1Database, workspaceId: string): Promise<AgentRow> {
+  const existing = await resolveAgentByName(db, workspaceId, 'build_agent')
+    ?? await resolveAgentByName(db, workspaceId, 'build');
+  if (existing) return existing;
+  return createAgent(db, {
+    workspaceId,
+    name: 'build_agent',
+    description: 'Workspace agent builder for drafting and creating agent systems.',
+    instructions: `You are the workspace Build agent. Help the user design an agent system from the task description.
+
+Phase 1: propose a concise plan, the intended agents, datasets, views, tools, integrations, and any open questions. Do not create workspace resources until the user explicitly replies "Build".
+
+Phase 2: after the user replies "Build", create the approved resources, update the task with created-item summaries, and mark the task completed or in_review if user action remains.
+
+Be explicit when a requested integration or creation capability is unavailable in this Flue deployment.`,
+    status: 'published',
+    type: 'interactive',
+  });
 }
 
 export async function updateAgent(

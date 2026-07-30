@@ -2,14 +2,60 @@ import { Hono } from 'hono';
 import { dispatch, invoke } from '@flue/runtime';
 import type { ApiEnv } from './middleware.ts';
 import { assertMembership } from './middleware.ts';
-import { createTask, deleteTask, getTaskById, getTasksByParent, getTaskStats, listTasks, updateTask } from '../db/repos/tasks.ts';
-import { writeTaskMetric } from '../analytics/engine.ts';
+import { json } from '../db/client.ts';
+import { listAgentsByBuildTask } from '../db/repos/agents.ts';
+import { createTask, deleteTask, getTaskById, getTasksByParent, getTaskStats, listDatasets, listDatasetsByBuildTask, listTasks, listTasksByBuildTask, updateTask } from '../db/repos/tasks.ts';
+import { getDatasetEvents, writeTaskMetric } from '../analytics/engine.ts';
 import { nextRunFromSpec, type ScheduleSpec } from '../shared/cron.ts';
 import task from '../agents/task.ts';
 import scheduledTask from '../workflows/scheduled-task.ts';
 import type { TaskStatus } from '../db/types.ts';
 
 const tasks = new Hono<ApiEnv>();
+
+function taskOutput(row: Awaited<ReturnType<typeof getTaskById>> extends infer T ? NonNullable<T> : never) {
+  return {
+    ...row,
+    task_metadata: json(row.task_metadata, {}),
+    agent_state: json(row.agent_state, null),
+    view_specs: json(row.view_specs, []),
+    pattern_specs: json(row.pattern_specs, {}),
+    schedule_spec: json(row.schedule_spec, null),
+    is_scheduled: row.is_scheduled === 1,
+  };
+}
+
+async function buildSummary(env: ApiEnv['Bindings'], workspaceId: string, buildTaskId: string) {
+  const task = await getTaskById(env.DB, buildTaskId);
+  if (!task || task.workspace_id !== workspaceId) return null;
+  const [agents, datasets, tasksForBuild] = await Promise.all([
+    listAgentsByBuildTask(env.DB, workspaceId, buildTaskId),
+    listDatasetsByBuildTask(env.DB, workspaceId, buildTaskId),
+    listTasksByBuildTask(env.DB, workspaceId, buildTaskId),
+  ]);
+  const parsedTask = taskOutput(task);
+  return {
+    agents,
+    datasets,
+    tasks: tasksForBuild.map(taskOutput),
+    view_specs: parsedTask.view_specs,
+  };
+}
+
+async function taskFilesSummary(env: ApiEnv['Bindings'], workspaceId: string, buildTaskId: string) {
+  const datasets = await listDatasets(env.DB, workspaceId);
+  const taskFilesDataset = datasets.find((dataset) => dataset.name === 'task-files');
+  if (!taskFilesDataset) return [];
+  const events = await getDatasetEvents(env, workspaceId, taskFilesDataset.id, 1000);
+  const counts = new Map<string, number>();
+  for (const event of events) {
+    if (event.task_id !== buildTaskId) continue;
+    const raw = json<Record<string, unknown>>(String(event.raw_data ?? ''), {});
+    const source = typeof raw.source === 'string' && raw.source.trim() ? raw.source : 'upload';
+    counts.set(source, (counts.get(source) ?? 0) + 1);
+  }
+  return [...counts.entries()].map(([source, chunk_count]) => ({ source, chunk_count }));
+}
 
 tasks.get('/workspaces/:workspaceId/tasks', async (c) => {
   const g = await assertMembership(c, c.req.param('workspaceId')); if (g) return g;
@@ -33,6 +79,27 @@ tasks.post('/workspaces/:workspaceId/tasks', async (c) => {
     await dispatch(task, { id: row.id, input: { type: 'task.created', task_id: row.id, title: row.title, description: row.description, message: body['initial_message'] as string ?? row.description ?? row.title, source: 'dashboard' } });
   }
   return c.json({ task: row }, 201);
+});
+
+tasks.get('/workspaces/:workspaceId/build-tasks/:buildTaskId/summary', async (c) => {
+  const workspaceId = c.req.param('workspaceId');
+  const g = await assertMembership(c, workspaceId); if (g) return g;
+  const summary = await buildSummary(c.env, workspaceId, c.req.param('buildTaskId'));
+  if (!summary) return c.json({ error: 'not found' }, 404);
+  return c.json(summary);
+});
+
+tasks.get('/workspaces/:workspaceId/build-tasks/:buildTaskId/session', async (c) => {
+  const workspaceId = c.req.param('workspaceId');
+  const buildTaskId = c.req.param('buildTaskId');
+  const g = await assertMembership(c, workspaceId); if (g) return g;
+  const task = await getTaskById(c.env.DB, buildTaskId);
+  if (!task || task.workspace_id !== workspaceId) return c.json({ error: 'not found' }, 404);
+  const [summary, taskFiles] = await Promise.all([
+    buildSummary(c.env, workspaceId, buildTaskId),
+    taskFilesSummary(c.env, workspaceId, buildTaskId),
+  ]);
+  return c.json({ task: taskOutput(task), summary, task_files: taskFiles });
 });
 
 tasks.get('/workspaces/:workspaceId/tasks/:taskId', async (c) => {
