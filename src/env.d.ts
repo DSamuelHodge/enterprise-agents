@@ -29,6 +29,9 @@ export interface Env {
   CF_ACCOUNT_ID: string;
   CF_ANALYTICS_TOKEN: string;
   OPENAI_API_KEY?: string;
+  ANTHROPIC_API_KEY?: string;
+  GOOGLE_GENERATIVE_AI_API_KEY?: string;
+  OPENROUTER_API_KEY?: string;
   SLACK_SIGNING_SECRET?: string;
   SLACK_CLIENT_ID?: string;
   SLACK_CLIENT_SECRET?: string;

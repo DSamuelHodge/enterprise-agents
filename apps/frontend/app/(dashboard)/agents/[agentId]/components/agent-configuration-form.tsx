@@ -18,7 +18,14 @@ import {
   CardTitle,
 } from "@workspace/ui/components/ui/card";
 import { PROMPT_TEMPLATES } from "./prompt-templates";
-import { EarlyPreviewModelDialog } from "./early-preview-model-dialog";
+import {
+  DEFAULT_AGENT_MODEL,
+  MODEL_PROVIDER_LABELS,
+  MODEL_OPTIONS,
+  REASONING_EFFORT_OPTIONS,
+  getModelProvider,
+  normalizeUiModel,
+} from "@workspace/ui/lib/model-catalog";
 
 export interface AgentConfigData {
   name?: string;
@@ -50,36 +57,6 @@ interface AgentConfigurationFormProps {
   nameError?: string;
   onNameValidation?: (isValid: boolean, error: string) => void;
 }
-
-// Preview model values: selecting these opens Early Preview dialog and does not change model
-export const EARLY_PREVIEW_MODEL_VALUES = ["gemini", "anthropic", "custom"] as const;
-
-// Model options - centralized (latest OpenAI models per https://developers.openai.com/api/docs/guides/latest-model)
-export const MODEL_OPTIONS = [
-  { value: "gpt-5.4", label: "GPT-5.4" },
-  { value: "gpt-5.4-mini", label: "GPT-5.4 Mini" },
-  { value: "gpt-5.4-nano", label: "GPT-5.4 Nano" },
-  { value: "gpt-5.3-chat-latest", label: "GPT-5.3 Chat" },
-  { value: "gpt-5.2", label: "GPT-5.2" },
-  { value: "gpt-5.1", label: "GPT-5.1" },
-  { value: "gpt-5", label: "GPT-5" },
-  { value: "gpt-5-mini", label: "GPT-5 Mini" },
-  { value: "gpt-5-nano", label: "GPT-5 Nano" },
-  { value: "o3-deep-research", label: "O3 Deep Research" },
-  { value: "o4-mini-deep-research", label: "O4 Mini Deep Research" },
-  { value: "gemini", label: "Gemini" },
-  { value: "anthropic", label: "Anthropic" },
-  { value: "custom", label: "Custom model" },
-];
-
-// Reasoning effort options - centralized (GPT-5.4 supports xhigh)
-export const REASONING_EFFORT_OPTIONS = [
-  { value: "none", label: "None" },
-  { value: "low", label: "Low" },
-  { value: "medium", label: "Medium" },
-  { value: "high", label: "High" },
-  { value: "xhigh", label: "Extra High" },
-];
 
 // Helper component for layout
 function FieldWrapper({
@@ -125,13 +102,11 @@ export function AgentConfigurationForm({
   const instructions =
     data?.instructions ||
     "You are a helpful support agent. Your role is to assist users with their technical questions and issues. Always be polite, professional, and thorough in your responses.";
-  const model = data?.model || "gpt-5.4";
+  const model = normalizeUiModel(data?.model, DEFAULT_AGENT_MODEL);
   const reasoningEffort = data?.reasoning_effort || "medium";
 
   // UI state
   const [internalNameError, setInternalNameError] = useState("");
-  const [showEarlyPreviewDialog, setShowEarlyPreviewDialog] = useState(false);
-
   const nameError = externalNameError || internalNameError;
 
   // Validation
@@ -161,7 +136,6 @@ export function AgentConfigurationForm({
   );
 
   return (
-    <>
     <div className="space-y-4">
       {/* Name Field */}
       {showNameField && (
@@ -214,10 +188,6 @@ export function AgentConfigurationForm({
               <Select
                 value={model}
                 onValueChange={(v) => {
-                  if (EARLY_PREVIEW_MODEL_VALUES.includes(v as (typeof EARLY_PREVIEW_MODEL_VALUES)[number])) {
-                    setShowEarlyPreviewDialog(true);
-                    return;
-                  }
                   onChange({ model: v });
                 }}
                 disabled={isReadOnly}
@@ -233,6 +203,9 @@ export function AgentConfigurationForm({
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                Provider: {MODEL_PROVIDER_LABELS[getModelProvider(model)]}
+              </p>
             </div>
 
             <div className="space-y-2">
@@ -316,10 +289,5 @@ export function AgentConfigurationForm({
         </FieldWrapper>
       )}
     </div>
-    <EarlyPreviewModelDialog
-      isOpen={showEarlyPreviewDialog}
-      onClose={() => setShowEarlyPreviewDialog(false)}
-    />
-    </>
   );
 }

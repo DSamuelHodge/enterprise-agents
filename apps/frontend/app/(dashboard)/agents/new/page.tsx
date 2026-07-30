@@ -226,8 +226,9 @@ export default function NewAgentPage() {
     getBuildAgent,
     teams,
     fetchTeams,
-    hasWorkspaceOpenAIToken,
+    hasRunnableModelProvider,
     fetchMcpServers,
+    fetchModelProviders,
   } = useWorkspaceScopedActions();
   const [creating, setCreating] = useState(false);
   const [startMessage, setStartMessage] = useState("");
@@ -240,7 +241,8 @@ export default function NewAgentPage() {
     if (!isReady) return;
     fetchTeams();
     fetchMcpServers();
-  }, [isReady, fetchTeams, fetchMcpServers]);
+    fetchModelProviders();
+  }, [isReady, fetchTeams, fetchMcpServers, fetchModelProviders]);
 
   useEffect(() => {
     if (teams.length > 0 && !selectedTeamId) {
@@ -252,7 +254,7 @@ export default function NewAgentPage() {
     async (message: string, options?: { skipTokenCheck?: boolean }) => {
       if (!currentWorkspaceId || !message.trim() || creating || !isReady)
         return;
-      if (!options?.skipTokenCheck && !hasWorkspaceOpenAIToken) {
+      if (!options?.skipTokenCheck && !hasRunnableModelProvider) {
         setAddOpenAITokenDialogOpen(true);
         return;
       }
@@ -308,7 +310,7 @@ export default function NewAgentPage() {
       isReady,
       router,
       selectedTeamId,
-      hasWorkspaceOpenAIToken,
+      hasRunnableModelProvider,
     ],
   );
 

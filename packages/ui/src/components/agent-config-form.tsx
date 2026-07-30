@@ -20,6 +20,12 @@ import {
 } from "./ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { cn } from "../lib/utils";
+import {
+  DEFAULT_AGENT_MODEL,
+  MODEL_OPTIONS,
+  REASONING_EFFORT_OPTIONS,
+  normalizeUiModel,
+} from "../lib/model-catalog";
 
 export interface AgentConfigData {
   name?: string;
@@ -66,32 +72,8 @@ interface PromptTemplate {
   category?: string;
 }
 
-// Default model options (OpenAI + early preview; per https://developers.openai.com/api/docs/guides/latest-model)
-export const DEFAULT_MODEL_OPTIONS = [
-  { value: "gpt-5.4", label: "GPT-5.4" },
-  { value: "gpt-5.4-mini", label: "GPT-5.4 Mini" },
-  { value: "gpt-5.4-nano", label: "GPT-5.4 Nano" },
-  { value: "gpt-5.3-chat-latest", label: "GPT-5.3 Chat" },
-  { value: "gpt-5.2", label: "GPT-5.2" },
-  { value: "gpt-5.1", label: "GPT-5.1" },
-  { value: "gpt-5", label: "GPT-5" },
-  { value: "gpt-5-mini", label: "GPT-5 Mini" },
-  { value: "gpt-5-nano", label: "GPT-5 Nano" },
-  { value: "o3-deep-research", label: "O3 Deep Research" },
-  { value: "o4-mini-deep-research", label: "O4 Mini Deep Research" },
-  { value: "gemini", label: "Gemini" },
-  { value: "anthropic", label: "Anthropic" },
-  { value: "custom", label: "Custom model" },
-];
-
-// Default reasoning effort options (GPT-5.4 supports xhigh)
-export const DEFAULT_REASONING_EFFORT_OPTIONS = [
-  { value: "none", label: "None" },
-  { value: "low", label: "Low" },
-  { value: "medium", label: "Medium" },
-  { value: "high", label: "High" },
-  { value: "xhigh", label: "Extra High" },
-];
+export const DEFAULT_MODEL_OPTIONS = MODEL_OPTIONS;
+export const DEFAULT_REASONING_EFFORT_OPTIONS = REASONING_EFFORT_OPTIONS;
 
 // Default instructions template
 const DEFAULT_INSTRUCTIONS =
@@ -133,7 +115,7 @@ export const AgentConfigForm = forwardRef<
     const [instructions, setInstructions] = useState(
       initialData?.instructions || DEFAULT_INSTRUCTIONS,
     );
-    const [model, setModel] = useState(initialData?.model || "gpt-5.4");
+    const [model, setModel] = useState(normalizeUiModel(initialData?.model, DEFAULT_AGENT_MODEL));
     const [reasoningEffort, setReasoningEffort] = useState(
       initialData?.reasoning_effort || "medium",
     );
@@ -178,7 +160,7 @@ export const AgentConfigForm = forwardRef<
           setDescription(initialData.description);
         if (initialData.instructions !== undefined)
           setInstructions(initialData.instructions);
-        if (initialData.model !== undefined) setModel(initialData.model);
+        if (initialData.model !== undefined) setModel(normalizeUiModel(initialData.model, DEFAULT_AGENT_MODEL));
         if (initialData.reasoning_effort !== undefined)
           setReasoningEffort(initialData.reasoning_effort);
       }
@@ -482,7 +464,7 @@ export function useAgentConfig(initialData?: Partial<AgentConfigData>) {
     name: initialData?.name || "",
     description: initialData?.description || "",
     instructions: initialData?.instructions || DEFAULT_INSTRUCTIONS,
-    model: initialData?.model || "gpt-5.4",
+    model: normalizeUiModel(initialData?.model, DEFAULT_AGENT_MODEL),
     reasoning_effort: initialData?.reasoning_effort || "medium",
   });
 
@@ -519,7 +501,7 @@ export function useAgentConfig(initialData?: Partial<AgentConfigData>) {
       name: "",
       description: "",
       instructions: DEFAULT_INSTRUCTIONS,
-      model: "gpt-5.4",
+      model: DEFAULT_AGENT_MODEL,
       reasoning_effort: "medium",
     });
     setErrors({});

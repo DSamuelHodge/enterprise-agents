@@ -1,6 +1,22 @@
 packages:
   - "apps/*"
   - "packages/*"
+overrides:
+  "@cloudflare/vite-plugin": "1.48.0"
+  "@hono/node-server": "2.0.12"
+  "@modelcontextprotocol/sdk": "1.29.0"
+  axios: "1.19.0"
+  ai: "7.0.42"
+  brace-expansion: "5.0.8"
+  esbuild: "0.28.1"
+  fast-uri: "3.1.4"
+  fast-xml-parser: "5.10.1"
+  hono: "4.12.32"
+  minimatch: "10.2.5"
+  partyserver: "0.5.9"
+  postcss: "8.5.25"
+  sharp: "0.35.3"
+  ws: "8.21.1"
 onlyBuiltDependencies:
   - "@google/genai"
   - "@mongodb-js/zstd"
@@ -29,3 +45,10 @@ allowBuilds:
   sharp: true
   utf-8-validate: true
   workerd: true
+minimumReleaseAgeExclude:
+  - postcss@8.5.25
+  - partyserver@0.5.9
+  - axios@1.19.0
+  - '@ai-sdk/gateway@4.0.32'
+  - '@ai-sdk/provider-utils@5.0.15'
+  - ai@7.0.42

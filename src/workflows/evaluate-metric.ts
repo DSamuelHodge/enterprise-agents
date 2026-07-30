@@ -6,6 +6,8 @@ import task from '../agents/task.ts';
 import { json } from '../db/client.ts';
 import { getMetricDefinitionById, getTaskById } from '../db/repos/tasks.ts';
 import { writeTaskMetric } from '../analytics/engine.ts';
+import { DEFAULT_JUDGE_MODEL } from '../shared/model-catalog.ts';
+import { resolveWorkspaceModelSpecifier } from '../shared/model-routing.ts';
 
 export function evaluateFormula(expr: string, vars: Record<string, number>): number {
   let pos = 0;
@@ -63,11 +65,15 @@ export default defineWorkflow({
       const taskOutput = input.taskOutput ?? json<{ summary?: string }>(taskRow.agent_state, {}).summary ?? '';
       // Fix 3: await harness.session() — returns Promise<FlueSession> in beta.9
       const session = await harness.session();
-      const verdict = await session.prompt([judgePrompt, '', '--- TASK INPUT ---', taskInput, '--- TASK OUTPUT ---', taskOutput, '', 'Respond with exactly one line of JSON: {"passed": true|false, "score": 0-100, "reasoning": "..."}'].join('\n'));
+      const judgeModel = await resolveWorkspaceModelSpecifier(env, input.workspaceId, config['judge_model'] as string | undefined, DEFAULT_JUDGE_MODEL);
+      const verdict = await session.prompt(
+        [judgePrompt, '', '--- TASK INPUT ---', taskInput, '--- TASK OUTPUT ---', taskOutput, '', 'Respond with exactly one line of JSON: {"passed": true|false, "score": 0-100, "reasoning": "..."}'].join('\n'),
+        { model: judgeModel },
+      );
       try {
-        const parsed = JSON.parse(String(verdict).trim().replace(/^```json?\s*|\s*```$/g, ''));
+        const parsed = JSON.parse(verdict.text.trim().replace(/^```json?\s*|\s*```$/g, ''));
         passed = Boolean(parsed.passed); score = typeof parsed.score === 'number' ? parsed.score : undefined; reasoning = String(parsed.reasoning ?? '');
-      } catch { passed = false; reasoning = `judge returned unparseable verdict: ${String(verdict).slice(0, 300)}`; }
+      } catch { passed = false; reasoning = `judge returned unparseable verdict: ${verdict.text.slice(0, 300)}`; }
     } else if (metric.metric_type === 'formula') {
       const expr = String(config['formula'] ?? config['expression'] ?? '');
       try {

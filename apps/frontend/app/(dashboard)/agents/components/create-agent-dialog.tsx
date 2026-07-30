@@ -17,7 +17,6 @@ import {
   useQuickActionDialog,
 } from "@workspace/ui/components/quick-action-dialog";
 import { useWorkspaceScopedActions } from "@/hooks/use-workspace-scoped-actions";
-import { AddOpenAITokenDialog } from "@/app/(dashboard)/integrations/components/add-openai-token-dialog";
 import { Plus, MessageSquare, Workflow } from "lucide-react";
 import {
   Select,
@@ -26,6 +25,7 @@ import {
   SelectContent,
   SelectValue,
 } from "@workspace/ui/components/ui/select";
+import { DEFAULT_AGENT_MODEL, MODEL_OPTIONS } from "@workspace/ui/lib/model-catalog";
 
 interface CreateAgentDialogProps {
   onAgentCreated?: () => void;
@@ -44,7 +44,6 @@ export function CreateAgentDialog({
     createAgent,
     fetchTeams,
     teams,
-    hasWorkspaceOpenAIToken,
     fetchMcpServers,
   } = useWorkspaceScopedActions();
   const {
@@ -52,14 +51,10 @@ export function CreateAgentDialog({
     open,
     close,
     isLoading,
-    startLoading,
-    stopLoading,
     handleError,
     handleSuccess,
   } = useQuickActionDialog();
   const [selectedTeamId, setSelectedTeamId] = useState(teamId || "");
-  const [addOpenAITokenDialogOpen, setAddOpenAITokenDialogOpen] =
-    useState(false);
 
   useEffect(() => {
     fetchTeams();
@@ -70,6 +65,7 @@ export function CreateAgentDialog({
   }, [isOpen, fetchMcpServers]);
 
   const [agentName, setAgentName] = useState("");
+  const [selectedModel, setSelectedModel] = useState(DEFAULT_AGENT_MODEL);
   const [selectedAgentType, setSelectedAgentType] = useState<
     "interactive" | "pipeline" | null
   >(null);
@@ -91,7 +87,7 @@ export function CreateAgentDialog({
     return true;
   };
 
-  const handleCreateAgent = async (options?: { skipTokenCheck?: boolean }) => {
+  const handleCreateAgent = async () => {
     // Validate inputs
     if (!validateAgentName(agentName)) {
       throw new Error("Please enter a valid agent name");
@@ -99,11 +95,6 @@ export function CreateAgentDialog({
 
     if (!selectedAgentType) {
       throw new Error("Please select an agent type");
-    }
-
-    if (!options?.skipTokenCheck && !hasWorkspaceOpenAIToken) {
-      setAddOpenAITokenDialogOpen(true);
-      throw new Error("OPENAI_TOKEN_REQUIRED");
     }
 
     // Create agent data based on type
@@ -116,7 +107,7 @@ export function CreateAgentDialog({
       name: agentName,
       description: "",
       instructions: baseInstructions,
-      model: "gpt-5.4",
+      model: selectedModel,
       reasoning_effort: "medium",
       type: selectedAgentType,
       status: "draft" as const,
@@ -162,13 +153,7 @@ export function CreateAgentDialog({
         isLoading={isLoading}
         closeOnSuccess={true}
         onSuccess={handleSuccess}
-        onError={(message) => {
-          if (message === "OPENAI_TOKEN_REQUIRED") {
-            setAddOpenAITokenDialogOpen(true);
-          } else {
-            handleError(message);
-          }
-        }}
+        onError={handleError}
         size="lg"
       >
         <div className="space-y-6">
@@ -210,6 +195,22 @@ export function CreateAgentDialog({
               <SelectItem value="__new_team__">+ New team</SelectItem>
             </SelectContent>
           </Select>
+
+          <div className="space-y-2">
+            <Label htmlFor="agent-model">Model</Label>
+            <Select value={selectedModel} onValueChange={setSelectedModel}>
+              <SelectTrigger id="agent-model">
+                <SelectValue placeholder="Select model" />
+              </SelectTrigger>
+              <SelectContent>
+                {MODEL_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
           {/* Agent Type Selection */}
           <div className="space-y-3">
@@ -275,23 +276,6 @@ export function CreateAgentDialog({
         </div>
       </QuickActionDialog>
 
-      <AddOpenAITokenDialog
-        open={addOpenAITokenDialogOpen}
-        onOpenChange={setAddOpenAITokenDialogOpen}
-        onTokenAdded={async () => {
-          await fetchMcpServers();
-          startLoading();
-          try {
-            await handleCreateAgent({ skipTokenCheck: true });
-            handleSuccess();
-            close();
-          } catch (e) {
-            handleError(e instanceof Error ? e.message : "Action failed");
-          } finally {
-            stopLoading();
-          }
-        }}
-      />
     </>
   );
 }

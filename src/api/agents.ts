@@ -1,12 +1,22 @@
 import { Hono } from 'hono';
 import type { ApiEnv } from './middleware.ts';
 import { assertMembership } from './middleware.ts';
-import { addSubagent, cloneAgent, createAgent, createAgentTool, createMcpServer, deleteAgent, deleteAgentTool, deleteMcpServer, deleteOauthToken, getAgentById, getAgentVersions, getMcpServerById, listAgents, listAgentTools, listAvailableSubagents, listMcpServers, listOauthConnections, listSubagents, removeSubagent, setDefaultToken, toggleSubagent, updateAgent, updateAgentTool, updateMcpServer, upsertOauthToken } from '../db/repos/agents.ts';
+import { addSubagent, cloneAgent, createAgent, createAgentTool, createMcpServer, deleteAgent, deleteAgentTool, deleteMcpServer, deleteOauthTokenForWorkspace, getAgentById, getAgentVersions, getMcpServerById, getOrCreateBuildAgent, listAgents, listAgentTools, listAvailableSubagents, listMcpServers, listModelProviderConnections, listOauthConnections, listSubagents, removeSubagent, setDefaultToken, toggleSubagent, updateAgent, updateAgentTool, updateMcpServer, upsertOauthToken } from '../db/repos/agents.ts';
 import { encryptSecret } from '../shared/crypto.ts';
 import type { AgentRow, ToolType } from '../db/types.ts';
+import { DEFAULT_AGENT_MODEL, DEFAULT_JUDGE_MODEL, MODEL_CATALOG, MODEL_PROVIDER_CATALOG } from '../shared/model-catalog.ts';
+import { listModelProviderStatuses, normalizeModelSpecifier, normalizeOptionalModelSpecifier, normalizeReasoningEffort, upsertModelProviderCredential } from '../shared/model-routing.ts';
+import type { ModelProviderId } from '../shared/model-catalog.ts';
 import remoteMcpDirectory from '../data/remote_mcp_directory.json' with { type: 'json' };
 
 const agents = new Hono<ApiEnv>();
+
+const MODEL_PROVIDER_IDS = new Set(MODEL_PROVIDER_CATALOG.map((provider) => provider.id));
+
+function parseModelProviderId(value: unknown): ModelProviderId | null {
+  const providerId = String(value ?? '').trim().toLowerCase();
+  return MODEL_PROVIDER_IDS.has(providerId as ModelProviderId) ? providerId as ModelProviderId : null;
+}
 
 type RemoteMcpDirectoryEntry = {
   id: string;
@@ -33,16 +43,34 @@ agents.get('/remote-mcp-directory', (c) => {
   return c.json({ entries });
 });
 
+agents.get('/models', (c) => c.json({
+  default_model: DEFAULT_AGENT_MODEL,
+  default_judge_model: DEFAULT_JUDGE_MODEL,
+  models: MODEL_CATALOG,
+  providers: MODEL_PROVIDER_CATALOG.map((provider) => ({
+    id: provider.id,
+    label: provider.label,
+    credential_required: provider.id !== 'cloudflare',
+    env_var: provider.envVar ?? null,
+    description: provider.description,
+  })),
+}));
+
 agents.get('/workspaces/:workspaceId/agents', async (c) => {
   const g = await assertMembership(c, c.req.param('workspaceId')); if (g) return g;
   return c.json({ agents: await listAgents(c.env.DB, c.req.param('workspaceId'), { status: c.req.query('status') as AgentRow['status'] | undefined, type: c.req.query('type') as AgentRow['type'] | undefined }) });
+});
+
+agents.get('/workspaces/:workspaceId/agents/build-agent', async (c) => {
+  const g = await assertMembership(c, c.req.param('workspaceId')); if (g) return g;
+  return c.json({ agent: await getOrCreateBuildAgent(c.env.DB, c.req.param('workspaceId')) });
 });
 
 agents.post('/workspaces/:workspaceId/agents', async (c) => {
   const g = await assertMembership(c, c.req.param('workspaceId')); if (g) return g;
   const body = await c.req.json<Record<string, unknown>>();
   try {
-    return c.json({ agent: await createAgent(c.env.DB, { workspaceId: c.req.param('workspaceId'), name: String(body['name'] ?? ''), description: body['description'] as string ?? null, instructions: body['instructions'] as string ?? null, teamId: body['team_id'] as string ?? null, status: body['status'] as AgentRow['status'], type: body['type'] as AgentRow['type'], model: body['model'] as string, reasoningEffort: body['reasoning_effort'] as AgentRow['reasoning_effort'], isPublic: Boolean(body['is_public']), buildTaskId: body['build_task_id'] as string ?? null }) }, 201);
+    return c.json({ agent: await createAgent(c.env.DB, { workspaceId: c.req.param('workspaceId'), name: String(body['name'] ?? ''), description: body['description'] as string ?? null, instructions: body['instructions'] as string ?? null, teamId: body['team_id'] as string ?? null, status: body['status'] as AgentRow['status'], type: body['type'] as AgentRow['type'], model: normalizeOptionalModelSpecifier(body['model'], 'openai/gpt-5.4'), reasoningEffort: body['reasoning_effort'], isPublic: Boolean(body['is_public']), buildTaskId: body['build_task_id'] as string ?? null }) }, 201);
   } catch (err) { return c.json({ error: String(err) }, 400); }
 });
 
@@ -55,25 +83,45 @@ agents.get('/workspaces/:workspaceId/agents/:agentId', async (c) => {
 
 agents.get('/workspaces/:workspaceId/agents/:agentId/versions', async (c) => {
   const g = await assertMembership(c, c.req.param('workspaceId')); if (g) return g;
+  const agent = await getAgentById(c.env.DB, c.req.param('agentId'));
+  if (!agent || agent.workspace_id !== c.req.param('workspaceId')) return c.json({ error: 'not found' }, 404);
   return c.json({ versions: await getAgentVersions(c.env.DB, c.req.param('agentId')) });
 });
 
 agents.post('/workspaces/:workspaceId/agents/:agentId/clone', async (c) => {
   const g = await assertMembership(c, c.req.param('workspaceId')); if (g) return g;
+  const body: Record<string, unknown> = await c.req.json<Record<string, unknown>>().catch(() => ({}));
+  const source = await getAgentById(c.env.DB, c.req.param('agentId'));
+  if (!source || source.workspace_id !== c.req.param('workspaceId')) return c.json({ error: 'not found' }, 404);
   const agent = await cloneAgent(c.env.DB, c.req.param('agentId'));
   if (!agent) return c.json({ error: 'not found' }, 404);
-  return c.json({ agent }, 201);
+  const patch: Record<string, unknown> = {};
+  for (const key of ['name', 'description', 'instructions', 'status', 'team_id', 'type', 'is_public']) {
+    if (body[key] !== undefined) patch[key] = body[key];
+  }
+  if (body['model'] !== undefined) patch['model'] = normalizeModelSpecifier(String(body['model']), 'openai/gpt-5.4');
+  if (body['reasoning_effort'] !== undefined) patch['reasoning_effort'] = normalizeReasoningEffort(body['reasoning_effort']);
+  const updated = Object.keys(patch).length > 0 ? await updateAgent(c.env.DB, agent.id, patch as never) : agent;
+  return c.json({ agent: updated }, 201);
 });
 
 agents.patch('/workspaces/:workspaceId/agents/:agentId', async (c) => {
   const g = await assertMembership(c, c.req.param('workspaceId')); if (g) return g;
+  const agent = await getAgentById(c.env.DB, c.req.param('agentId'));
+  if (!agent || agent.workspace_id !== c.req.param('workspaceId')) return c.json({ error: 'not found' }, 404);
   const body = await c.req.json<Record<string, unknown>>();
-  try { return c.json({ agent: await updateAgent(c.env.DB, c.req.param('agentId'), body as never) }); }
+  try {
+    if (body['model'] !== undefined) body['model'] = normalizeModelSpecifier(String(body['model']), 'openai/gpt-5.4');
+    if (body['reasoning_effort'] !== undefined) body['reasoning_effort'] = normalizeReasoningEffort(body['reasoning_effort']);
+    return c.json({ agent: await updateAgent(c.env.DB, c.req.param('agentId'), body as never) });
+  }
   catch (err) { return c.json({ error: String(err) }, 400); }
 });
 
 agents.delete('/workspaces/:workspaceId/agents/:agentId', async (c) => {
   const g = await assertMembership(c, c.req.param('workspaceId')); if (g) return g;
+  const agent = await getAgentById(c.env.DB, c.req.param('agentId'));
+  if (!agent || agent.workspace_id !== c.req.param('workspaceId')) return c.json({ error: 'not found' }, 404);
   await deleteAgent(c.env.DB, c.req.param('agentId'));
   return c.json({ ok: true });
 });
@@ -169,6 +217,54 @@ agents.get('/workspaces/:workspaceId/oauth-connections', async (c) => {
   return c.json({ connections: rows.map((r) => ({ id: r.id, mcp_server_id: r.mcp_server_id, auth_type: r.auth_type, token_name: r.token_name, is_default: r.is_default === 1, expires_at: r.expires_at, connected_at: r.connected_at })) });
 });
 
+agents.get('/workspaces/:workspaceId/model-providers', async (c) => {
+  const g = await assertMembership(c, c.req.param('workspaceId')); if (g) return g;
+  const statuses = await listModelProviderStatuses(c.env, c.req.param('workspaceId'));
+  const connections = await listModelProviderConnections(c.env.DB, c.req.param('workspaceId'));
+  return c.json({
+    providers: statuses,
+    connections: connections.map((r) => {
+      const metadata = JSON.parse(r.provider_metadata || '{}') as Record<string, unknown>;
+      return {
+        id: r.id,
+        provider_id: metadata['provider_id'],
+        custom_provider_id: metadata['custom_provider_id'] ?? null,
+        base_url: metadata['base_url'] ?? null,
+        api_protocol: metadata['api_protocol'] ?? null,
+        default_model: metadata['default_model'] ?? null,
+        token_name: r.token_name,
+        is_default: r.is_default === 1,
+        connected_at: r.connected_at,
+      };
+    }),
+  });
+});
+
+agents.post('/workspaces/:workspaceId/model-provider-connections', async (c) => {
+  const workspaceId = c.req.param('workspaceId');
+  const g = await assertMembership(c, workspaceId); if (g) return g;
+  const body = await c.req.json<Record<string, unknown>>();
+  const providerId = parseModelProviderId(body['provider_id']);
+  if (!providerId) return c.json({ error: 'unsupported provider_id' }, 400);
+  if (providerId === 'cloudflare') return c.json({ error: 'cloudflare provider uses the Worker AI binding and does not store an API key' }, 400);
+  const apiKey = String(body['api_key'] ?? body['access_token'] ?? '').trim();
+  if (!apiKey) return c.json({ error: 'api_key required' }, 400);
+  try {
+    const conn = await upsertModelProviderCredential(c.env, {
+      userId: c.get('userId'),
+      workspaceId,
+      providerId,
+      apiKey,
+      tokenName: body['token_name'] as string ?? null,
+      baseUrl: body['base_url'] as string ?? null,
+      api: (body['api'] ?? body['api_protocol']) as string ?? null,
+    });
+    return c.json({ connection: { id: conn.id, provider_id: providerId, token_name: conn.token_name, is_default: true } }, 201);
+  } catch (err) {
+    return c.json({ error: String(err) }, 400);
+  }
+});
+
 agents.post('/workspaces/:workspaceId/oauth-connections', async (c) => {
   const g = await assertMembership(c, c.req.param('workspaceId')); if (g) return g;
   const body = await c.req.json<Record<string, unknown>>();
@@ -187,7 +283,7 @@ agents.post('/workspaces/:workspaceId/oauth-connections/:tokenId/default', async
 
 agents.delete('/workspaces/:workspaceId/oauth-connections/:tokenId', async (c) => {
   const g = await assertMembership(c, c.req.param('workspaceId')); if (g) return g;
-  await deleteOauthToken(c.env.DB, c.req.param('tokenId'));
+  await deleteOauthTokenForWorkspace(c.env.DB, c.req.param('workspaceId'), c.req.param('tokenId'));
   return c.json({ ok: true });
 });
 

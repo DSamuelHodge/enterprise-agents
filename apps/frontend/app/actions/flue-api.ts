@@ -165,8 +165,10 @@ export async function executeFlueWorkflow(workflowName: string, input: WorkflowI
       return request(`/workspaces/${workspaceId(input)}/agents/${agentId(input)}`);
     case "AgentsGetVersionsWorkflow":
       return request(`/workspaces/${workspaceId(input)}/agents/${agentId(input)}/versions`);
+    case "AgentsGetBuildAgentWorkflow":
+      return request(`/workspaces/${workspaceId(input)}/agents/build-agent`);
     case "AgentsCloneWorkflow":
-      return request(`/workspaces/${workspaceId(input)}/agents/${input.source_agent_id || input.agent_id}/clone`, { method: "POST" });
+      return request(`/workspaces/${workspaceId(input)}/agents/${input.source_agent_id || input.agent_id}/clone`, { method: "POST", body: body(input) });
     case "AgentsUpdateWorkflow":
     case "AgentsUpdateStatusWorkflow":
       return request(`/workspaces/${workspaceId(input)}/agents/${agentId(input)}`, { method: "PATCH", body: body(input) });
@@ -219,6 +221,12 @@ export async function executeFlueWorkflow(workflowName: string, input: WorkflowI
       return request(`/workspaces/${workspaceId(input)}/oauth-connections/${input.token_id}`, { method: "DELETE" });
     case "OAuthTokenSetDefaultByIdWorkflow":
       return request(`/workspaces/${workspaceId(input)}/oauth-connections/${input.token_id}/default`, { method: "POST", body: body(input) });
+    case "ModelProvidersReadWorkflow":
+      return request(`/workspaces/${workspaceId(input)}/model-providers`);
+    case "ModelProviderConnectionCreateWorkflow":
+      return request(`/workspaces/${workspaceId(input)}/model-provider-connections`, { method: "POST", body: body(input) });
+    case "ModelProviderConnectionDeleteWorkflow":
+      return request(`/workspaces/${workspaceId(input)}/oauth-connections/${input.connection_id || input.token_id}`, { method: "DELETE" });
 
     case "TasksReadWorkflow":
       return request(`/workspaces/${workspaceId(input)}/tasks${qs({
@@ -230,6 +238,10 @@ export async function executeFlueWorkflow(workflowName: string, input: WorkflowI
       return request(`/workspaces/${workspaceId(input)}/tasks`, { method: "POST", body: body(input) });
     case "TasksGetByIdWorkflow":
       return request(`/workspaces/${workspaceId(input)}/tasks/${taskId(input)}`);
+    case "TasksGetBuildSummaryWorkflow":
+      return request(`/workspaces/${workspaceId(input)}/build-tasks/${input.build_task_id || input.task_id}/summary`);
+    case "TasksGetBuildSessionWorkflow":
+      return request(`/workspaces/${workspaceId(input)}/build-tasks/${input.build_task_id || input.task_id}/session`);
     case "TasksUpdateWorkflow":
       return request(`/workspaces/${workspaceId(input)}/tasks/${taskId(input)}`, { method: "PATCH", body: body(input) });
     case "TasksDeleteWorkflow":

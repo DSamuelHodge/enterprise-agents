@@ -161,6 +161,35 @@ export interface McpServer {
   updated_at?: string;
 }
 
+export interface ModelProviderConnection {
+  id: string;
+  provider_id: string;
+  custom_provider_id?: string | null;
+  base_url?: string | null;
+  api_protocol?: string | null;
+  default_model?: string | null;
+  token_name?: string | null;
+  is_default?: boolean;
+  connected_at?: string;
+}
+
+export interface ModelProviderStatus {
+  provider_id: string;
+  label: string;
+  description?: string;
+  configured?: boolean;
+  credential_configured?: boolean;
+  env_configured?: boolean;
+  server_id?: string | null;
+  base_url?: string | null;
+  models?: Array<{ value: string; label: string }>;
+}
+
+export interface ModelProvidersResult {
+  providers: ModelProviderStatus[];
+  connections: ModelProviderConnection[];
+}
+
 async function executeWorkflow<T>(
   workflowName: string,
   input: any = {},
@@ -233,6 +262,13 @@ async function executeWorkflow<T>(
         };
       }
 
+      if ("providers" in result && "connections" in result) {
+        return {
+          success: true,
+          data: result as T,
+        };
+      }
+
       // For datasets list responses
       if ("datasets" in result && Array.isArray(result.datasets)) {
         return {
@@ -297,6 +333,13 @@ async function executeWorkflow<T>(
         return {
           success: true,
           data: result.mcp_server as T,
+        };
+      }
+
+      if ("connection" in result && result.connection) {
+        return {
+          success: true,
+          data: result.connection as T,
         };
       }
 
@@ -412,6 +455,15 @@ export function useWorkspaceScopedActions() {
     isLoading: false,
     error: null,
   });
+  const [modelProviders, setModelProviders] = useState<ModelProvidersResult>({
+    providers: [],
+    connections: [],
+  });
+  const [modelProvidersLoading, setModelProvidersLoading] =
+    useState<LoadingState>({
+      isLoading: false,
+      error: null,
+    });
 
   // Agents actions
   const fetchAgents = useCallback(
@@ -643,19 +695,19 @@ export function useWorkspaceScopedActions() {
   );
 
   const getBuildAgent = useCallback(async () => {
-    if (!isReady) {
-      return { success: false, error: "Not ready", data: null };
+    if (!isReady || !currentWorkspaceId) {
+      return { success: false, error: "No valid workspace context", data: null };
     }
     try {
       return await executeWorkflow<Agent | null>(
         "AgentsGetBuildAgentWorkflow",
-        {},
+        { workspace_id: currentWorkspaceId },
       );
     } catch (error) {
       console.error("Failed to get build agent:", error);
       return { success: false, error: "Failed to get build agent", data: null };
     }
-  }, [isReady]);
+  }, [currentWorkspaceId, isReady]);
 
   const publishAgent = useCallback(
     async (agentId: string) => {
@@ -1193,6 +1245,78 @@ export function useWorkspaceScopedActions() {
     return result;
   }, [currentWorkspaceId, isReady]);
 
+  const fetchModelProviders = useCallback(async () => {
+    if (!isReady || !currentWorkspaceId) {
+      console.error("Cannot fetch model providers: no valid workspace context");
+      return { success: false, error: "No valid workspace context" };
+    }
+
+    setModelProvidersLoading({ isLoading: true, error: null });
+    let result;
+    try {
+      result = await executeWorkflow<ModelProvidersResult>(
+        "ModelProvidersReadWorkflow",
+        { workspace_id: currentWorkspaceId },
+      );
+      if (result.success && result.data) {
+        setModelProviders(result.data);
+        setModelProvidersLoading({ isLoading: false, error: null });
+      } else {
+        setModelProvidersLoading({
+          isLoading: false,
+          error: result.error || "Failed to fetch model providers",
+        });
+      }
+    } catch (error) {
+      setModelProvidersLoading({
+        isLoading: false,
+        error: "Failed to fetch model providers",
+      });
+    }
+    return result;
+  }, [currentWorkspaceId, isReady]);
+
+  const createModelProviderConnection = useCallback(
+    async (data: {
+      provider_id: string;
+      api_key: string;
+      token_name?: string;
+      custom_provider_id?: string;
+      base_url?: string;
+      api_protocol?: string;
+      default_model?: string;
+      is_default?: boolean;
+    }) => {
+      if (!isReady || !currentWorkspaceId) {
+        console.error("Cannot create model provider connection: no valid workspace context");
+        return { success: false, error: "No valid workspace context" };
+      }
+      const result = await executeWorkflow<ModelProviderConnection>(
+        "ModelProviderConnectionCreateWorkflow",
+        { ...data, workspace_id: currentWorkspaceId },
+      );
+      if (result.success) await fetchModelProviders();
+      return result;
+    },
+    [currentWorkspaceId, fetchModelProviders, isReady],
+  );
+
+  const deleteModelProviderConnection = useCallback(
+    async (connectionId: string) => {
+      if (!isReady || !currentWorkspaceId) {
+        console.error("Cannot delete model provider connection: no valid workspace context");
+        return { success: false, error: "No valid workspace context" };
+      }
+      const result = await executeWorkflow<boolean>(
+        "ModelProviderConnectionDeleteWorkflow",
+        { workspace_id: currentWorkspaceId, connection_id: connectionId },
+      );
+      if (result.success) await fetchModelProviders();
+      return result;
+    },
+    [currentWorkspaceId, fetchModelProviders, isReady],
+  );
+
   const createMcpServer = useCallback(
     async (data: {
       server_label: string;
@@ -1386,6 +1510,15 @@ export function useWorkspaceScopedActions() {
     () => !!(openaiServer && (openaiServer.connections_count ?? 0) > 0),
     [openaiServer],
   );
+  const hasRunnableModelProvider = useMemo(
+    () =>
+      hasWorkspaceOpenAIToken ||
+      modelProviders.connections.length > 0 ||
+      modelProviders.providers.some(
+        (provider) => provider.configured || provider.provider_id === "cloudflare",
+      ),
+    [hasWorkspaceOpenAIToken, modelProviders],
+  );
 
   return {
     currentWorkspaceId,
@@ -1430,6 +1563,12 @@ export function useWorkspaceScopedActions() {
     fetchMcpServers,
     openaiServer,
     hasWorkspaceOpenAIToken,
+    modelProviders,
+    modelProvidersLoading,
+    fetchModelProviders,
+    createModelProviderConnection,
+    deleteModelProviderConnection,
+    hasRunnableModelProvider,
     createMcpServer,
     updateMcpServer,
     deleteMcpServer,
