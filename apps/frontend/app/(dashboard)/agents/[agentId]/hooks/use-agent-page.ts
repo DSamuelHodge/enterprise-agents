@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useDatabaseWorkspace } from "@/lib/database-workspace-context";
 import { useWorkspaceScopedActions, Agent } from "@/hooks/use-workspace-scoped-actions";
 import { AgentConfigData } from "../components/agent-configuration-form";
+import { DEFAULT_AGENT_MODEL, normalizeUiModel } from "@workspace/ui/lib/model-catalog";
 
 export function useAgentPage(agentId: string) {
   const router = useRouter();
@@ -57,7 +58,7 @@ export function useAgentPage(agentId: string) {
           name: result.data.name,
           description: result.data.description,
           instructions: result.data.instructions,
-          model: result.data.model || "gpt-5.4",
+          model: normalizeUiModel(result.data.model, DEFAULT_AGENT_MODEL),
           reasoning_effort: result.data.reasoning_effort || "medium",
         });
       } else {
@@ -97,7 +98,7 @@ export function useAgentPage(agentId: string) {
       name: agent.name,
       description: agent.description,
       instructions: agent.instructions,
-      model: agent.model || "gpt-5.4",
+      model: normalizeUiModel(agent.model, DEFAULT_AGENT_MODEL),
       reasoning_effort: agent.reasoning_effort || "medium",
     };
 
@@ -143,7 +144,7 @@ export function useAgentPage(agentId: string) {
             name: result.data.name,
             description: result.data.description,
             instructions: result.data.instructions,
-            model: result.data.model || "gpt-5.4",
+            model: normalizeUiModel(result.data.model, DEFAULT_AGENT_MODEL),
             reasoning_effort: result.data.reasoning_effort || "medium",
           });
         } else {

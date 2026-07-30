@@ -15,6 +15,7 @@ import { useDatabaseWorkspace } from "../../../lib/database-workspace-context";
 import { AddFromDirectory } from "./components/add-from-directory";
 import { AddMcpServerDialog } from "./components/add-mcp-server-dialog";
 import { AddTokenDialog } from "./components/add-token-dialog";
+import { AddModelProviderDialog } from "./components/add-model-provider-dialog";
 
 // Map McpServer to Integration format for the table component
 const mapServerToIntegration = (server: McpServer) => ({
@@ -30,17 +31,26 @@ const mapServerToIntegration = (server: McpServer) => ({
 
 export default function IntegrationsPage() {
   const router = useRouter();
-  const { mcpServers, mcpServersLoading, fetchMcpServers, executeWorkflow } =
-    useWorkspaceScopedActions();
+  const {
+    mcpServers,
+    mcpServersLoading,
+    fetchMcpServers,
+    executeWorkflow,
+    modelProviders,
+    fetchModelProviders,
+  } = useWorkspaceScopedActions();
   const { startOAuthFlow } = useOAuthFlow();
   const { currentUser } = useDatabaseWorkspace();
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [addTokenDialogOpen, setAddTokenDialogOpen] = useState(false);
+  const [addModelProviderDialogOpen, setAddModelProviderDialogOpen] =
+    useState(false);
   const [selectedServer, setSelectedServer] = useState<McpServer | null>(null);
 
   useEffect(() => {
     fetchMcpServers();
-  }, [fetchMcpServers]);
+    fetchModelProviders();
+  }, [fetchMcpServers, fetchModelProviders]);
 
   const handleEditIntegration = (integrationId: string) => {
     router.push(`/integrations/${integrationId}`);
@@ -124,6 +134,14 @@ export default function IntegrationsPage() {
         <Plus className="h-4 w-4 mr-1" />
         New Integration
       </Button>
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => setAddModelProviderDialogOpen(true)}
+      >
+        <Plus className="h-4 w-4 mr-1" />
+        Model Provider
+      </Button>
     </div>
   );
 
@@ -174,6 +192,13 @@ export default function IntegrationsPage() {
         onStartOAuth={handleOAuthConnect}
         onSaveBearerToken={handleBearerTokenSave}
         defaultTab="oauth"
+      />
+
+      <AddModelProviderDialog
+        open={addModelProviderDialogOpen}
+        onOpenChange={setAddModelProviderDialogOpen}
+        providers={modelProviders.providers}
+        onSuccess={fetchModelProviders}
       />
     </div>
   );

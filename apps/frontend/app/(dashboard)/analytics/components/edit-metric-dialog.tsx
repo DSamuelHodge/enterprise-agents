@@ -30,6 +30,7 @@ import {
   runRetroactiveEvaluation,
 } from "@/app/actions/metrics";
 import { useWorkspaceScopedActions } from "@/hooks/use-workspace-scoped-actions";
+import { DEFAULT_JUDGE_MODEL, modelOptionsFor, normalizeUiModel } from "@workspace/ui/lib/model-catalog";
 
 interface EditMetricDialogProps {
   metricId: string;
@@ -78,7 +79,7 @@ export function EditMetricDialog({
     parsedConfig.judge_prompt || "",
   );
   const [judgeModel, setJudgeModel] = useState(
-    parsedConfig.judge_model || "gpt-5-nano",
+    normalizeUiModel(String(parsedConfig.judge_model || DEFAULT_JUDGE_MODEL), DEFAULT_JUDGE_MODEL),
   );
 
   // Python Code config
@@ -117,7 +118,7 @@ export function EditMetricDialog({
       setDescription(initialDescription || "");
       setIsActive(initialIsActive);
       setJudgePrompt(parsedConfig.judge_prompt || "");
-      setJudgeModel(parsedConfig.judge_model || "gpt-5-nano");
+      setJudgeModel(normalizeUiModel(String(parsedConfig.judge_model || DEFAULT_JUDGE_MODEL), DEFAULT_JUDGE_MODEL));
       setPythonCode(parsedConfig.code || "");
       setFormula(parsedConfig.formula || "");
       setFormulaVariables(parsedConfig.variables || []);
@@ -167,7 +168,7 @@ export function EditMetricDialog({
       const updatedConfig: Record<string, unknown> = {};
       if (metricType === "llm_judge") {
         updatedConfig.judge_prompt = judgePrompt;
-        updatedConfig.judge_model = judgeModel;
+        updatedConfig.judge_model = normalizeUiModel(judgeModel, DEFAULT_JUDGE_MODEL);
       } else if (metricType === "python_code") {
         updatedConfig.code = pythonCode;
       } else if (metricType === "formula") {
@@ -484,13 +485,11 @@ export function EditMetricDialog({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="gpt-5-nano">GPT-5 Nano</SelectItem>
-                        <SelectItem value="gpt-5.4-nano">GPT-5.4 Nano</SelectItem>
-                        <SelectItem value="gpt-5-mini">GPT-5 Mini</SelectItem>
-                        <SelectItem value="gpt-5.4-mini">GPT-5.4 Mini</SelectItem>
-                        <SelectItem value="gpt-5">GPT-5</SelectItem>
-                        <SelectItem value="gpt-5.2">GPT-5.2</SelectItem>
-                        <SelectItem value="gpt-5.4">GPT-5.4</SelectItem>
+                        {modelOptionsFor("judge").map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>

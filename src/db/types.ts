@@ -63,7 +63,7 @@ export interface AgentRow {
   parent_agent_id: string | null;
   type: AgentType;
   model: string;
-  reasoning_effort: 'none' | 'low' | 'medium' | 'high' | null;
+  reasoning_effort: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | null;
   is_public: number;
   build_task_id: string | null;
   created_at: string;

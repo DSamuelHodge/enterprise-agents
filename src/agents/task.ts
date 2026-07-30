@@ -9,6 +9,7 @@ import { writeTaskMetric } from '../analytics/engine.ts';
 import { TraceRecorder } from '../analytics/tracing.ts';
 import { decryptSecret } from '../shared/crypto.ts';
 import { slackPostMessage } from '../shared/slack.ts';
+import { resolveWorkspaceModelSpecifier, toThinkingLevel } from '../shared/model-routing.ts';
 
 const BASE_INSTRUCTIONS = `You are a task agent operating inside a workspace platform.
 Each conversation is bound to exactly one task. Your first action on any new
@@ -24,10 +25,14 @@ Operating rules:
 - If the briefing includes Slack context, post updates with notify_slack_thread.
 - Be concise in status updates; put substantive results in your replies.`;
 
-export const task = defineAgent<Env>(({ id, env }) => ({
-  model: env.DEFAULT_MODEL,
-  instructions: BASE_INSTRUCTIONS,
-  tools: [
+export const task = defineAgent<Env>(async ({ id, env }) => {
+  const taskRow = await getTaskById(env.DB, id);
+  const agentRow = taskRow ? await getAgentById(env.DB, taskRow.agent_id) : null;
+  return {
+    model: taskRow ? await resolveWorkspaceModelSpecifier(env, taskRow.workspace_id, agentRow?.model, env.DEFAULT_MODEL) : env.DEFAULT_MODEL,
+    thinkingLevel: toThinkingLevel(agentRow?.reasoning_effort),
+    instructions: BASE_INSTRUCTIONS,
+    tools: [
     defineTool({
       name: 'get_task_context',
       description: 'Load the briefing for this task: role instructions, task fields, subagents, integration metadata. Call this first.',
@@ -139,7 +144,8 @@ export const task = defineAgent<Env>(({ id, env }) => ({
         return { ok: true };
       },
     }),
-  ],
-}));
+    ],
+  };
+});
 
 export default task;

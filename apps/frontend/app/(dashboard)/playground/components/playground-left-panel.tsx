@@ -6,6 +6,7 @@ import { AgentConfigurationForm, type AgentConfigData } from "../../agents/[agen
 import { Brain, Wrench, FileText } from "lucide-react";
 import { Agent } from "@/hooks/use-workspace-scoped-actions";
 import { PlaygroundToolsDisplay } from "./playground-tools-display";
+import { DEFAULT_AGENT_MODEL, normalizeUiModel } from "@workspace/ui/lib/model-catalog";
 
 interface PlaygroundLeftPanelProps {
   agent: Agent;
@@ -25,7 +26,7 @@ export function PlaygroundLeftPanel({
   // Convert agent to form data
   const formData = useMemo<AgentConfigData>(() => ({
     instructions: agent.instructions || "",
-    model: agent.model || "gpt-5.4",
+    model: normalizeUiModel(agent.model, DEFAULT_AGENT_MODEL),
     reasoning_effort: agent.reasoning_effort || "medium",
   }), [agent.instructions, agent.model, agent.reasoning_effort]);
 

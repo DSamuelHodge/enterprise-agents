@@ -26,10 +26,12 @@ import {
 } from "@/hooks/use-workspace-scoped-actions";
 import { useDatabaseWorkspace } from "@/lib/database-workspace-context";
 import { AddOpenAITokenDialog } from "@/app/(dashboard)/integrations/components/add-openai-token-dialog";
+import { AddModelProviderDialog } from "@/app/(dashboard)/integrations/components/add-model-provider-dialog";
 import { ScheduleSetupDialog, ScheduleSpec } from "./schedule-setup-dialog";
 import { executeWorkflow } from "@/app/actions/workflow";
 import Link from "next/link";
 import { AgentStatusBadge } from "@workspace/ui/components/agent-status-badge";
+import { getModelProvider } from "@workspace/ui/lib/model-catalog";
 
 interface CreateTaskFormProps {
   onSubmit: (taskData: {
@@ -76,11 +78,15 @@ export function CreateTaskForm({
     fetchTeams,
     teams,
     hasWorkspaceOpenAIToken,
+    modelProviders,
     fetchMcpServers,
+    fetchModelProviders,
   } = useWorkspaceScopedActions();
   const { currentUser } = useDatabaseWorkspace();
   const router = useRouter();
   const [addOpenAITokenDialogOpen, setAddOpenAITokenDialogOpen] =
+    useState(false);
+  const [addModelProviderDialogOpen, setAddModelProviderDialogOpen] =
     useState(false);
   const pendingScheduleSpecRef = useRef<ScheduleSpec | null>(null);
 
@@ -95,7 +101,8 @@ export function CreateTaskForm({
 
   useEffect(() => {
     fetchMcpServers();
-  }, [fetchMcpServers]);
+    fetchModelProviders();
+  }, [fetchMcpServers, fetchModelProviders]);
 
   // Fetch all versions when an agent is selected
   useEffect(() => {
@@ -153,6 +160,25 @@ export function CreateTaskForm({
     fetchAllVersions();
   }, [selectedAgentId, agents, getAgentVersions]);
 
+  const findSelectedAgent = (agentId: string) =>
+    allAgentVersions.find((agent) => agent.id === agentId) ||
+    agents.find((agent) => agent.id === agentId);
+
+  const providerConfiguredForAgent = (agentId: string) => {
+    const provider = getModelProvider(findSelectedAgent(agentId)?.model);
+    if (provider === "openai") return hasWorkspaceOpenAIToken;
+    if (provider === "cloudflare") return true;
+    return modelProviders.connections.some(
+      (connection) => connection.provider_id === provider,
+    );
+  };
+
+  const openProviderDialogForAgent = (agentId: string) => {
+    const provider = getModelProvider(findSelectedAgent(agentId)?.model);
+    if (provider === "openai") setAddOpenAITokenDialogOpen(true);
+    else setAddModelProviderDialogOpen(true);
+  };
+
   const handleVersionToggle = (versionId: string) => {
     setSelectedVersionIds((prev) =>
       prev.includes(versionId)
@@ -174,9 +200,9 @@ export function CreateTaskForm({
     if (!selectedAgentId) {
       return;
     }
-    if (!hasWorkspaceOpenAIToken) {
+    if (!providerConfiguredForAgent(selectedAgentId)) {
       pendingScheduleSpecRef.current = null;
-      setAddOpenAITokenDialogOpen(true);
+      openProviderDialogForAgent(selectedAgentId);
       return;
     }
 
@@ -279,9 +305,9 @@ export function CreateTaskForm({
       alert("Please select an agent");
       return;
     }
-    if (!hasWorkspaceOpenAIToken) {
+    if (!providerConfiguredForAgent(selectedAgentId)) {
       pendingScheduleSpecRef.current = scheduleSpec;
-      setAddOpenAITokenDialogOpen(true);
+      openProviderDialogForAgent(selectedAgentId);
       return;
     }
 
@@ -564,6 +590,20 @@ export function CreateTaskForm({
               else handleSubmit();
             }, 0);
           });
+        }}
+      />
+      <AddModelProviderDialog
+        open={addModelProviderDialogOpen}
+        onOpenChange={setAddModelProviderDialogOpen}
+        providers={modelProviders.providers}
+        onSuccess={async () => {
+          const spec = pendingScheduleSpecRef.current;
+          pendingScheduleSpecRef.current = null;
+          await fetchModelProviders();
+          setTimeout(() => {
+            if (spec) handleScheduleSubmit(spec);
+            else handleSubmit();
+          }, 0);
         }}
       />
     </div>

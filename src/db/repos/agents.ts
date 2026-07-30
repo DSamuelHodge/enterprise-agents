@@ -6,6 +6,7 @@
  */
 import { many, one, run } from '../client.ts';
 import { uuid } from '../../shared/crypto.ts';
+import { normalizeModelSpecifier, normalizeReasoningEffort } from '../../shared/model-catalog.ts';
 import type {
   AgentRow,
   AgentSubagentRow,
@@ -31,7 +32,7 @@ export async function createAgent(
     parentAgentId?: string | null;
     type?: AgentRow['type'];
     model?: string;
-    reasoningEffort?: AgentRow['reasoning_effort'];
+    reasoningEffort?: unknown;
     isPublic?: boolean;
     buildTaskId?: string | null;
   },
@@ -47,7 +48,7 @@ export async function createAgent(
      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     id, input.workspaceId, input.teamId ?? null, input.name, input.description ?? null,
     input.instructions ?? null, input.status ?? 'draft', input.parentAgentId ?? null,
-    input.type ?? 'interactive', input.model ?? 'gpt-5.4', input.reasoningEffort ?? 'medium',
+    input.type ?? 'interactive', normalizeModelSpecifier(input.model, 'openai/gpt-5.4'), normalizeReasoningEffort(input.reasoningEffort) ?? 'medium',
     input.isPublic ? 1 : 0, input.buildTaskId ?? null,
   );
   return (await getAgentById(db, id))!;
@@ -95,7 +96,7 @@ export function resolveAgentByName(db: D1Database, workspaceId: string, name: st
 export async function updateAgent(
   db: D1Database,
   id: string,
-  patch: Partial<Pick<AgentRow, 'name' | 'description' | 'instructions' | 'status' | 'team_id' | 'model' | 'reasoning_effort' | 'is_public' | 'type'>>,
+  patch: Partial<Pick<AgentRow, 'name' | 'description' | 'instructions' | 'status' | 'team_id' | 'model' | 'is_public' | 'type'>> & { reasoning_effort?: unknown },
 ) {
   if (patch.name !== undefined && !AGENT_NAME_RE.test(patch.name)) {
     throw new Error('agent name must match ^[a-z0-9_-]+$');
@@ -115,8 +116,10 @@ export async function updateAgent(
        updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
      WHERE id = ?`,
     patch.name ?? null, patch.description ?? null, patch.instructions ?? null,
-    patch.status ?? null, patch.team_id ?? null, patch.model ?? null,
-    patch.reasoning_effort ?? null, patch.is_public ?? null, patch.type ?? null, id,
+    patch.status ?? null, patch.team_id ?? null,
+    patch.model === undefined ? null : normalizeModelSpecifier(patch.model, 'openai/gpt-5.4'),
+    patch.reasoning_effort === undefined ? null : normalizeReasoningEffort(patch.reasoning_effort),
+    patch.is_public ?? null, patch.type ?? null, id,
   );
   return getAgentById(db, id);
 }
@@ -125,7 +128,11 @@ export async function updateAgent(
  * Clone an agent as a new version (agents_clone): child row + copied tools
  * and subagent links, all in one atomic D1 batch.
  */
-export async function cloneAgent(db: D1Database, sourceId: string): Promise<AgentRow | null> {
+export async function cloneAgent(
+  db: D1Database,
+  sourceId: string,
+  patch: Partial<Pick<AgentRow, 'name' | 'description' | 'instructions' | 'team_id' | 'model' | 'reasoning_effort' | 'is_public' | 'type'>> = {},
+): Promise<AgentRow | null> {
   const src = await getAgentById(db, sourceId);
   if (!src) return null;
   const rootId = src.parent_agent_id ?? src.id;
@@ -142,8 +149,10 @@ export async function cloneAgent(db: D1Database, sourceId: string): Promise<Agen
          parent_agent_id, type, model, reasoning_effort, is_public)
        VALUES (?,?,?,?,?,?, 'draft', ?, ?, ?, ?, ?)`,
     ).bind(
-      newId, src.workspace_id, src.team_id, src.name, src.description, src.instructions,
-      rootId, src.type, src.model, src.reasoning_effort, src.is_public,
+      newId, src.workspace_id, patch.team_id ?? src.team_id, patch.name ?? src.name,
+      patch.description ?? src.description, patch.instructions ?? src.instructions,
+      rootId, patch.type ?? src.type, normalizeModelSpecifier(patch.model ?? src.model, 'openai/gpt-5.4'),
+      normalizeReasoningEffort(patch.reasoning_effort ?? src.reasoning_effort), patch.is_public ?? src.is_public,
     ),
     ...tools.map((t) =>
       db.prepare(
@@ -372,6 +381,35 @@ export function listOauthConnections(db: D1Database, workspaceId: string) {
   );
 }
 
+export function getOauthConnectionById(db: D1Database, workspaceId: string, id: string) {
+  return one<UserOauthConnectionRow>(
+    db,
+    `SELECT * FROM user_oauth_connections WHERE workspace_id = ? AND id = ?`,
+    workspaceId, id,
+  );
+}
+
+export function listModelProviderConnections(db: D1Database, workspaceId: string) {
+  return many<UserOauthConnectionRow>(
+    db,
+    `SELECT * FROM user_oauth_connections
+     WHERE workspace_id = ?
+       AND json_extract(provider_metadata, '$.kind') = 'model_provider'
+     ORDER BY is_default DESC, created_at DESC`,
+    workspaceId,
+  );
+}
+
+export function getModelProviderServer(db: D1Database, workspaceId: string, providerId: string) {
+  return one<McpServerRow>(
+    db,
+    `SELECT * FROM mcp_servers
+     WHERE workspace_id = ? AND server_label = ?
+     ORDER BY created_at DESC LIMIT 1`,
+    workspaceId, `model-provider:${providerId}`,
+  );
+}
+
 export function getOauthConnection(db: D1Database, userId: string, mcpServerId: string) {
   return one<UserOauthConnectionRow>(
     db,
@@ -453,6 +491,8 @@ export async function upsertOauthToken(
 }
 
 export async function setDefaultToken(db: D1Database, workspaceId: string, mcpServerId: string, tokenId: string) {
+  const token = await getOauthConnectionById(db, workspaceId, tokenId);
+  if (!token || token.mcp_server_id !== mcpServerId) throw new Error('token not found');
   await db.batch([
     db.prepare(
       `UPDATE user_oauth_connections SET is_default = 0 WHERE workspace_id = ? AND mcp_server_id = ?`,
@@ -463,5 +503,10 @@ export async function setDefaultToken(db: D1Database, workspaceId: string, mcpSe
 
 export async function deleteOauthToken(db: D1Database, id: string) {
   const res = await run(db, `DELETE FROM user_oauth_connections WHERE id = ?`, id);
+  return res.meta.changes > 0;
+}
+
+export async function deleteOauthTokenForWorkspace(db: D1Database, workspaceId: string, id: string) {
+  const res = await run(db, `DELETE FROM user_oauth_connections WHERE workspace_id = ? AND id = ?`, workspaceId, id);
   return res.meta.changes > 0;
 }
