@@ -99,6 +99,21 @@ export function getTaskByMetadata(db: D1Database, workspaceId: string, key: stri
   );
 }
 
+export function getSlackTaskByThreadForAgent(
+  db: D1Database,
+  workspaceId: string,
+  threadTs: string,
+  agentId: string,
+) {
+  return one<TaskRow>(
+    db,
+    `SELECT * FROM tasks
+     WHERE workspace_id = ? AND slack_thread_ts = ? AND agent_id = ?
+     ORDER BY created_at DESC`,
+    workspaceId, threadTs, agentId,
+  );
+}
+
 export async function updateTask(
   db: D1Database,
   id: string,

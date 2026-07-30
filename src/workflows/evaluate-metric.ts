@@ -65,9 +65,9 @@ export default defineWorkflow({
       const session = await harness.session();
       const verdict = await session.prompt([judgePrompt, '', '--- TASK INPUT ---', taskInput, '--- TASK OUTPUT ---', taskOutput, '', 'Respond with exactly one line of JSON: {"passed": true|false, "score": 0-100, "reasoning": "..."}'].join('\n'));
       try {
-        const parsed = JSON.parse(String(verdict).trim().replace(/^```json?\s*|\s*```$/g, ''));
+        const parsed = JSON.parse(verdict.text.trim().replace(/^```json?\s*|\s*```$/g, ''));
         passed = Boolean(parsed.passed); score = typeof parsed.score === 'number' ? parsed.score : undefined; reasoning = String(parsed.reasoning ?? '');
-      } catch { passed = false; reasoning = `judge returned unparseable verdict: ${String(verdict).slice(0, 300)}`; }
+      } catch { passed = false; reasoning = `judge returned unparseable verdict: ${verdict.text.slice(0, 300)}`; }
     } else if (metric.metric_type === 'formula') {
       const expr = String(config['formula'] ?? config['expression'] ?? '');
       try {
