@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useEffect } from "react";
 import { CollapsiblePanel } from "@workspace/ui/components/collapsible-panel";
 import { AgentConfigurationForm, type AgentConfigData } from "../../agents/[agentId]/components/agent-configuration-form";
 import { Brain, Wrench, FileText } from "lucide-react";
 import { Agent } from "@/hooks/use-workspace-scoped-actions";
+import { useWorkspaceScopedActions } from "@/hooks/use-workspace-scoped-actions";
 import { PlaygroundToolsDisplay } from "./playground-tools-display";
 import { DEFAULT_AGENT_MODEL, normalizeUiModel } from "@workspace/ui/lib/model-catalog";
 
@@ -23,6 +24,14 @@ export function PlaygroundLeftPanel({
   onToggleCollapse,
   workspaceId,
 }: PlaygroundLeftPanelProps) {
+  const { isReady, modelProviders, fetchModelProviders } = useWorkspaceScopedActions();
+  useEffect(() => {
+    if (isReady) void fetchModelProviders();
+  }, [fetchModelProviders, isReady]);
+  const modelOptions = useMemo(
+    () => modelProviders.providers.flatMap((provider) => provider.models ?? []),
+    [modelProviders.providers],
+  );
   // Convert agent to form data
   const formData = useMemo<AgentConfigData>(() => ({
     instructions: agent.instructions || "",
@@ -49,6 +58,7 @@ export function PlaygroundLeftPanel({
           showDescriptionField={false}
           showModelSection={false}
           showInstructionsSection={true}
+          modelOptions={modelOptions.length > 0 ? modelOptions : undefined}
           variant="compact"
           instructionsMinHeight="400px"
         />
@@ -66,6 +76,7 @@ export function PlaygroundLeftPanel({
           showDescriptionField={false}
           showModelSection={true}
           showInstructionsSection={false}
+          modelOptions={modelOptions.length > 0 ? modelOptions : undefined}
           variant="compact"
         />
       ),

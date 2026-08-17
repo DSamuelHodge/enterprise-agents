@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@workspace/ui/components/ui/button";
 import { Input } from "@workspace/ui/components/ui/input";
@@ -45,6 +45,8 @@ export function CreateAgentDialog({
     fetchTeams,
     teams,
     fetchMcpServers,
+    fetchModelProviders,
+    modelProviders,
   } = useWorkspaceScopedActions();
   const {
     isOpen,
@@ -61,8 +63,11 @@ export function CreateAgentDialog({
   }, [fetchTeams]);
 
   useEffect(() => {
-    if (isOpen) fetchMcpServers();
-  }, [isOpen, fetchMcpServers]);
+    if (isOpen) {
+      fetchMcpServers();
+      fetchModelProviders();
+    }
+  }, [isOpen, fetchMcpServers, fetchModelProviders]);
 
   const [agentName, setAgentName] = useState("");
   const [selectedModel, setSelectedModel] = useState(DEFAULT_AGENT_MODEL);
@@ -70,6 +75,10 @@ export function CreateAgentDialog({
     "interactive" | "pipeline" | null
   >(null);
   const [nameError, setNameError] = useState("");
+  const modelOptions = useMemo(
+    () => modelProviders.providers.flatMap((provider) => provider.models ?? []),
+    [modelProviders.providers],
+  );
 
   const validateAgentName = (name: string): boolean => {
     const slugPattern = /^[a-z0-9-_]+$/;
@@ -198,18 +207,19 @@ export function CreateAgentDialog({
 
           <div className="space-y-2">
             <Label htmlFor="agent-model">Model</Label>
-            <Select value={selectedModel} onValueChange={setSelectedModel}>
-              <SelectTrigger id="agent-model">
-                <SelectValue placeholder="Select model" />
-              </SelectTrigger>
-              <SelectContent>
-                {MODEL_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Input
+              id="agent-model"
+              value={selectedModel}
+              onChange={(event) => setSelectedModel(event.target.value)}
+              list="create-agent-model-options"
+              autoComplete="off"
+              spellCheck={false}
+            />
+            <datalist id="create-agent-model-options">
+              {(modelOptions.length > 0 ? modelOptions : MODEL_OPTIONS).map((option) => (
+                <option key={option.value} value={option.value} label={option.label} />
+              ))}
+            </datalist>
           </div>
 
           {/* Agent Type Selection */}

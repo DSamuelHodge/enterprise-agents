@@ -254,24 +254,20 @@ export const AgentConfigForm = forwardRef<
               <Label htmlFor="agent-model" className="text-xs">
                 Model
               </Label>
-              <Select
+              <Input
+                id="agent-model"
                 value={model}
-                onValueChange={(v) => {
-                  setModel(v);
-                }}
+                onChange={(event) => setModel(event.target.value)}
                 disabled={isReadOnly}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select model" />
-                </SelectTrigger>
-                <SelectContent>
-                  {modelOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                list="agent-model-options"
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <datalist id="agent-model-options">
+                {modelOptions.map((option) => (
+                  <option key={option.value} value={option.value} label={option.label} />
+                ))}
+              </datalist>
             </div>
 
             <div className="space-y-2">

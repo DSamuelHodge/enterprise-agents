@@ -15,12 +15,13 @@ export interface ModelProviderCatalogEntry {
   baseUrl?: string;
   api?: string;
   envVar?: string;
+  credentialRequired?: boolean;
   description: string;
   models: ModelCatalogEntry[];
 }
 
-export const DEFAULT_AGENT_MODEL = 'openai/gpt-5';
-export const DEFAULT_JUDGE_MODEL = 'openai/gpt-5-nano';
+export const DEFAULT_AGENT_MODEL = 'cloudflare/@cf/moonshotai/kimi-k2.6';
+export const DEFAULT_JUDGE_MODEL = 'cloudflare/@cf/meta/llama-3.1-8b-instruct';
 
 export const MODEL_CATALOG: ModelCatalogEntry[] = [
   { id: 'openai/gpt-5.4', label: 'GPT-5.4', provider: 'openai', supportsReasoning: true },
@@ -37,6 +38,8 @@ export const MODEL_CATALOG: ModelCatalogEntry[] = [
   { id: 'google/gemini-2.5-pro', label: 'Gemini 2.5 Pro', provider: 'google' },
   { id: 'google/gemini-2.5-flash', label: 'Gemini 2.5 Flash', provider: 'google' },
   { id: 'openrouter/moonshotai/kimi-k2.6', label: 'Kimi K2.6 via OpenRouter', provider: 'openrouter' },
+  { id: 'cloudflare/@cf/meta/llama-3.1-8b-instruct', label: 'Llama 3.1 8B via Workers AI', provider: 'cloudflare' },
+  { id: 'cloudflare/@cf/mistral/mistral-7b-instruct-v0.1', label: 'Mistral 7B via Workers AI', provider: 'cloudflare' },
   { id: 'cloudflare/@cf/moonshotai/kimi-k2.6', label: 'Kimi K2.6 via Workers AI', provider: 'cloudflare' },
   { id: 'custom/default', label: 'Custom OpenAI-compatible model', provider: 'custom' },
 ];
@@ -80,8 +83,9 @@ export const MODEL_PROVIDER_CATALOG: ModelProviderCatalogEntry[] = [
   },
   {
     id: 'cloudflare',
-    label: 'Cloudflare Workers AI',
-    description: 'Cloudflare binding-backed models; credentials come from the Worker binding.',
+    label: 'Cloudflare AI Gateway',
+    credentialRequired: false,
+    description: 'Cloudflare binding-backed models routed through the configured AI Gateway.',
     models: MODEL_CATALOG.filter((model) => model.provider === 'cloudflare'),
   },
   {

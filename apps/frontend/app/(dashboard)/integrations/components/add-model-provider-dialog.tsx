@@ -40,7 +40,7 @@ export function AddModelProviderDialog({
 }: AddModelProviderDialogProps) {
   const { createModelProviderConnection } = useWorkspaceScopedActions();
   const configurableProviders = useMemo(
-    () => providers.filter((provider) => provider.provider_id !== "cloudflare"),
+    () => providers.filter((provider) => provider.credential_required !== false),
     [providers],
   );
   const [providerId, setProviderId] = useState("");
@@ -48,6 +48,7 @@ export function AddModelProviderDialog({
   const [apiKey, setApiKey] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
   const [apiProtocol, setApiProtocol] = useState("openai-completions");
+  const [defaultModel, setDefaultModel] = useState("");
   const [showKey, setShowKey] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,6 +57,7 @@ export function AddModelProviderDialog({
     (provider) => provider.provider_id === providerId,
   );
   const isCustom = providerId === "custom";
+  const availableModels = selectedProvider?.models ?? [];
 
   const reset = () => {
     setProviderId("");
@@ -63,6 +65,7 @@ export function AddModelProviderDialog({
     setApiKey("");
     setBaseUrl("");
     setApiProtocol("openai-completions");
+    setDefaultModel("");
     setShowKey(false);
     setError(null);
   };
@@ -88,6 +91,7 @@ export function AddModelProviderDialog({
         custom_provider_id: isCustom ? "custom" : undefined,
         base_url: isCustom ? baseUrl : undefined,
         api_protocol: isCustom ? apiProtocol : undefined,
+        default_model: defaultModel || undefined,
       });
       if (!result.success) {
         setError(result.error || "Failed to save provider");
@@ -114,7 +118,13 @@ export function AddModelProviderDialog({
         <div className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="model-provider">Provider</Label>
-            <Select value={providerId} onValueChange={setProviderId}>
+            <Select
+              value={providerId}
+              onValueChange={(nextProviderId) => {
+                setProviderId(nextProviderId);
+                setDefaultModel("");
+              }}
+            >
               <SelectTrigger id="model-provider">
                 <SelectValue placeholder="Select provider" />
               </SelectTrigger>
@@ -166,6 +176,29 @@ export function AddModelProviderDialog({
                 </Select>
               </div>
             </>
+          )}
+
+          {selectedProvider && (
+            <div className="space-y-2">
+              <Label htmlFor="model-provider-default-model">Default model ID</Label>
+              <Input
+                id="model-provider-default-model"
+                value={defaultModel}
+                onChange={(event) => setDefaultModel(event.target.value)}
+                placeholder={`${providerId}/your-model-id`}
+                list="model-provider-model-options"
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <datalist id="model-provider-model-options">
+                {availableModels.map((model) => (
+                  <option key={model.value} value={model.value} label={model.label} />
+                ))}
+              </datalist>
+              <p className="text-xs text-muted-foreground">
+                Choose a discovered model or enter any model ID supported by this provider.
+              </p>
+            </div>
           )}
 
           <div className="space-y-2">

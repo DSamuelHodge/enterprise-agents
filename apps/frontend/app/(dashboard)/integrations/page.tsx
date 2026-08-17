@@ -16,6 +16,7 @@ import { AddFromDirectory } from "./components/add-from-directory";
 import { AddMcpServerDialog } from "./components/add-mcp-server-dialog";
 import { AddTokenDialog } from "./components/add-token-dialog";
 import { AddModelProviderDialog } from "./components/add-model-provider-dialog";
+import { ModelProviderConnectionsTable } from "./components/model-provider-connections-table";
 
 // Map McpServer to Integration format for the table component
 const mapServerToIntegration = (server: McpServer) => ({
@@ -37,7 +38,10 @@ export default function IntegrationsPage() {
     fetchMcpServers,
     executeWorkflow,
     modelProviders,
+    modelProvidersLoading,
     fetchModelProviders,
+    deleteModelProviderConnection,
+    refreshModelProviderModels,
   } = useWorkspaceScopedActions();
   const { startOAuthFlow } = useOAuthFlow();
   const { currentUser } = useDatabaseWorkspace();
@@ -113,7 +117,12 @@ export default function IntegrationsPage() {
   };
 
   // Convert servers to integration format for the table
-  const integrationData = mcpServers.map(mapServerToIntegration);
+  const modelProviderServerIds = new Set(
+    modelProviders.connections.map((connection) => connection.server_id).filter(Boolean),
+  );
+  const integrationData = mcpServers
+    .filter((server) => !modelProviderServerIds.has(server.id))
+    .map(mapServerToIntegration);
 
   const breadcrumbs = [{ label: "Integrations" }];
 
@@ -157,6 +166,24 @@ export default function IntegrationsPage() {
             </p>
           </div>
         )}
+        {modelProvidersLoading.error && (
+          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md">
+            <p className="text-red-800 text-sm">Model providers: {modelProvidersLoading.error}</p>
+          </div>
+        )}
+
+        <ModelProviderConnectionsTable
+          providers={modelProviders.providers}
+          connections={modelProviders.connections}
+          onAdd={() => setAddModelProviderDialogOpen(true)}
+          onDelete={async (connectionId) => {
+            if (!window.confirm("Remove this model provider connection?")) return;
+            await deleteModelProviderConnection(connectionId);
+          }}
+          onRefresh={async (providerId) => {
+            await refreshModelProviderModels(providerId);
+          }}
+        />
 
         {mcpServersLoading.isLoading && mcpServers.length === 0 ? (
           <div className="flex items-center justify-center h-64">
