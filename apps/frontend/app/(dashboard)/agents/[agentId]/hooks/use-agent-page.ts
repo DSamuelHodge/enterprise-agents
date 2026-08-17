@@ -18,7 +18,9 @@ export function useAgentPage(agentId: string) {
     getAgentVersions, 
     getAgentById, 
     publishAgent, 
-    archiveAgent 
+    archiveAgent,
+    modelProviders,
+    fetchModelProviders,
   } = useWorkspaceScopedActions();
 
   // State for the individual agent
@@ -78,6 +80,10 @@ export function useAgentPage(agentId: string) {
   useEffect(() => {
     fetchAgent();
   }, [fetchAgent]);
+
+  useEffect(() => {
+    if (isReady) void fetchModelProviders();
+  }, [fetchModelProviders, isReady]);
 
   // Memoize the onChange callback to prevent infinite re-renders
   const handleDraftChange = useCallback((d: Partial<AgentConfigData>) => {
@@ -226,6 +232,7 @@ export function useAgentPage(agentId: string) {
     workspaceId,
     activeTab,
     draft,
+    modelProviders,
     
     // Loading states
     isSaving,

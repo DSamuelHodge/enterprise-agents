@@ -21,6 +21,7 @@ export default function AgentEditPage() {
     workspaceId,
     activeTab,
     draft,
+    modelProviders,
     isSaving,
     isPublishing,
     isDeleting,
@@ -82,6 +83,7 @@ export default function AgentEditPage() {
               onTabChange={setActiveTab}
               draft={draft}
               onChange={handleDraftChange}
+              modelProviders={modelProviders}
               isSaving={isSaving}
               workspaceId={workspaceId}
               agentId={agentId}

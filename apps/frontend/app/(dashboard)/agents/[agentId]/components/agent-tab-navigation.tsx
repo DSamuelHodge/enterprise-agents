@@ -12,7 +12,7 @@ import {
   History,
   Share2,
 } from "lucide-react";
-import { Agent, ApiResponse } from "@/hooks/use-workspace-scoped-actions";
+import { Agent, ApiResponse, type ModelProvidersResult } from "@/hooks/use-workspace-scoped-actions";
 import { AgentSetupTab, AgentSharingTab, AgentVersionsTab, WebhookTab, AgentConfigData } from "./";
 
 import AgentFlow from "@workspace/ui/components/agent-flow";
@@ -38,6 +38,7 @@ interface AgentTabNavigationProps {
   agentId: string;
   getAgentVersions: (agentId: string) => Promise<ApiResponse<RawAgent[]>>;
   onAgentUpdated?: () => void;
+  modelProviders: ModelProvidersResult;
 }
 
 const tabsConfig = [
@@ -78,6 +79,7 @@ export function AgentTabNavigation({
   agentId,
   getAgentVersions,
   onAgentUpdated,
+  modelProviders,
 }: AgentTabNavigationProps) {
   return (
     <div className="bg-background rounded-lg border">
@@ -124,6 +126,7 @@ export function AgentTabNavigation({
             isSaving={isSaving}
             workspaceId={workspaceId}
             onAgentUpdated={onAgentUpdated}
+            modelProviders={modelProviders}
           />
         </TabsContent>
 

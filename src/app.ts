@@ -1,11 +1,25 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { env as workerEnv } from 'cloudflare:workers';
+import { registerProvider } from '@flue/runtime';
 // Fix 1: flue() is exported from the /routing subpath in beta.9, not the root.
 import { flue } from '@flue/runtime/routing';
 import type { ApiEnv } from './api/middleware.ts';
 import api from './api/index.ts';
 
 const app = new Hono<ApiEnv>();
+
+// Keep the managed Cloudflare model path explicit so every task uses the
+// configured AI Gateway instead of relying on an implicit runtime default.
+registerProvider('cloudflare', {
+  api: 'cloudflare-ai-binding',
+  binding: workerEnv.AI,
+  gateway: {
+    id: workerEnv.AI_GATEWAY_ID || 'default',
+    collectLog: true,
+    metadata: { application: 'enterprise-agents' },
+  },
+});
 
 app.use('*', cors({
   origin: (origin, c) => {

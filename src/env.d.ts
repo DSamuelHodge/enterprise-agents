@@ -22,6 +22,7 @@ export interface Env {
 
   // Vars
   DEFAULT_MODEL: string;
+  AI_GATEWAY_ID?: string;
   FRONTEND_URL: string;
 
   // Secrets
@@ -36,4 +37,15 @@ export interface Env {
   SLACK_CLIENT_ID?: string;
   SLACK_CLIENT_SECRET?: string;
   TOKEN_ENCRYPTION_KEY: string;
+}
+
+// `cloudflare:workers` exposes the platform `Cloudflare.Env` type. Keep the
+// application-owned binding additions visible there for module-level setup.
+declare global {
+  namespace Cloudflare {
+    interface Env {
+      AI: Ai;
+      AI_GATEWAY_ID?: string;
+    }
+  }
 }

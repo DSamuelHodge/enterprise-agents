@@ -4,8 +4,9 @@ import { assertMembership } from './middleware.ts';
 import { addSubagent, cloneAgent, createAgent, createAgentTool, createMcpServer, deleteAgent, deleteAgentTool, deleteMcpServer, deleteOauthTokenForWorkspace, getAgentById, getAgentVersions, getMcpServerById, getOrCreateBuildAgent, listAgents, listAgentTools, listAvailableSubagents, listMcpServers, listModelProviderConnections, listOauthConnections, listSubagents, removeSubagent, setDefaultToken, toggleSubagent, updateAgent, updateAgentTool, updateMcpServer, upsertOauthToken } from '../db/repos/agents.ts';
 import { encryptSecret } from '../shared/crypto.ts';
 import type { AgentRow, ToolType } from '../db/types.ts';
+import type { UserOauthConnectionRow } from '../db/types.ts';
 import { DEFAULT_AGENT_MODEL, DEFAULT_JUDGE_MODEL, MODEL_CATALOG, MODEL_PROVIDER_CATALOG } from '../shared/model-catalog.ts';
-import { listModelProviderStatuses, normalizeModelSpecifier, normalizeOptionalModelSpecifier, normalizeReasoningEffort, upsertModelProviderCredential } from '../shared/model-routing.ts';
+import { listModelProviderStatuses, normalizeModelSpecifier, normalizeOptionalModelSpecifier, normalizeReasoningEffort, refreshModelProviderModels, upsertModelProviderCredential } from '../shared/model-routing.ts';
 import type { ModelProviderId } from '../shared/model-catalog.ts';
 import remoteMcpDirectory from '../data/remote_mcp_directory.json' with { type: 'json' };
 
@@ -27,6 +28,24 @@ type RemoteMcpDirectoryEntry = {
   tags?: string[];
   auth_type?: string | null;
 };
+
+export function serializeModelProviderConnection(r: UserOauthConnectionRow) {
+  const metadata = JSON.parse(r.provider_metadata || '{}') as Record<string, unknown>;
+  return {
+    id: r.id,
+    provider_id: metadata['provider_id'],
+    provider_label: MODEL_PROVIDER_CATALOG.find((provider) => provider.id === metadata['provider_id'])?.label ?? metadata['provider_id'],
+    server_id: r.mcp_server_id,
+    credential_configured: true,
+    custom_provider_id: metadata['custom_provider_id'] ?? null,
+    base_url: metadata['base_url'] ?? null,
+    api_protocol: metadata['api'] ?? metadata['api_protocol'] ?? null,
+    default_model: metadata['default_model'] ?? null,
+    token_name: r.token_name,
+    is_default: r.is_default === 1,
+    connected_at: r.connected_at,
+  };
+}
 
 agents.get('/remote-mcp-directory', (c) => {
   const query = (c.req.query('query') ?? '').trim().toLowerCase();
@@ -50,7 +69,7 @@ agents.get('/models', (c) => c.json({
   providers: MODEL_PROVIDER_CATALOG.map((provider) => ({
     id: provider.id,
     label: provider.label,
-    credential_required: provider.id !== 'cloudflare',
+    credential_required: provider.credentialRequired !== false,
     env_var: provider.envVar ?? null,
     description: provider.description,
   })),
@@ -223,21 +242,21 @@ agents.get('/workspaces/:workspaceId/model-providers', async (c) => {
   const connections = await listModelProviderConnections(c.env.DB, c.req.param('workspaceId'));
   return c.json({
     providers: statuses,
-    connections: connections.map((r) => {
-      const metadata = JSON.parse(r.provider_metadata || '{}') as Record<string, unknown>;
-      return {
-        id: r.id,
-        provider_id: metadata['provider_id'],
-        custom_provider_id: metadata['custom_provider_id'] ?? null,
-        base_url: metadata['base_url'] ?? null,
-        api_protocol: metadata['api'] ?? metadata['api_protocol'] ?? null,
-        default_model: metadata['default_model'] ?? null,
-        token_name: r.token_name,
-        is_default: r.is_default === 1,
-        connected_at: r.connected_at,
-      };
-    }),
+    connections: connections.map(serializeModelProviderConnection),
   });
+});
+
+agents.post('/workspaces/:workspaceId/model-providers/:providerId/models/refresh', async (c) => {
+  const workspaceId = c.req.param('workspaceId');
+  const g = await assertMembership(c, workspaceId); if (g) return g;
+  const providerId = parseModelProviderId(c.req.param('providerId'));
+  if (!providerId) return c.json({ error: 'unsupported provider_id' }, 400);
+  try {
+    const models = await refreshModelProviderModels(c.env, workspaceId, providerId);
+    return c.json({ models: models.map((model) => ({ value: model.modelId, label: model.label })) });
+  } catch (err) {
+    return c.json({ error: String(err) }, 400);
+  }
 });
 
 agents.post('/workspaces/:workspaceId/model-provider-connections', async (c) => {
