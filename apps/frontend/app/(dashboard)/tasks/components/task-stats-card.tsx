@@ -21,6 +21,8 @@ interface TaskStats {
   in_review: number;
   closed: number;
   completed: number;
+  failed: number;
+  cancelled: number;
   total: number;
 }
 
@@ -66,6 +68,26 @@ const statusConfig = {
     badgeColor:
       "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200",
   },
+  failed: {
+    label: "Failed",
+    icon: CircleX,
+    color: "bg-red-500",
+    textColor: "text-red-600 dark:text-red-400",
+    bgColor: "bg-red-50 dark:bg-red-950/50",
+    borderColor: "border-red-200 dark:border-red-800",
+    badgeColor:
+      "bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200",
+  },
+  cancelled: {
+    label: "Cancelled",
+    icon: CircleX,
+    color: "bg-neutral-500",
+    textColor: "text-neutral-600 dark:text-neutral-400",
+    bgColor: "bg-neutral-50 dark:bg-neutral-950/50",
+    borderColor: "border-neutral-200 dark:border-neutral-800",
+    badgeColor:
+      "bg-neutral-100 text-neutral-800 dark:bg-neutral-900/50 dark:text-neutral-200",
+  },
 };
 
 function normalizeStats(input: Partial<TaskStats>): TaskStats {
@@ -73,13 +95,17 @@ function normalizeStats(input: Partial<TaskStats>): TaskStats {
   const inReview = Number(input.in_review ?? 0);
   const closed = Number(input.closed ?? 0);
   const completed = Number(input.completed ?? 0);
+  const failed = Number(input.failed ?? 0);
+  const cancelled = Number(input.cancelled ?? 0);
 
   return {
     in_progress: inProgress,
     in_review: inReview,
     closed,
     completed,
-    total: Number(input.total ?? inProgress + inReview + closed + completed),
+    failed,
+    cancelled,
+    total: Number(input.total ?? inProgress + inReview + closed + completed + failed + cancelled),
   };
 }
 
@@ -138,8 +164,8 @@ export function TaskStatsCard() {
 
   if (loading) {
     return (
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-        {Array.from({ length: 5 }).map((_, i) => (
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4">
+        {Array.from({ length: 7 }).map((_, i) => (
           <Card key={i} className="p-4 shadow-none">
             <div className="space-y-2">
               {/* Icon and Badge skeleton */}
@@ -176,7 +202,7 @@ export function TaskStatsCard() {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4">
         {/* Total Card */}
         <Card className="p-4 shadow-none">
           <div className="flex items-center justify-between mb-2">

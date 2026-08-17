@@ -6,7 +6,7 @@
  */
 import { many, one, run } from '../client.ts';
 import { uuid } from '../../shared/crypto.ts';
-import { normalizeModelSpecifier, normalizeReasoningEffort } from '../../shared/model-catalog.ts';
+import { DEFAULT_AGENT_MODEL, normalizeModelSpecifier, normalizeReasoningEffort } from '../../shared/model-catalog.ts';
 import type {
   AgentRow,
   AgentSubagentRow,
@@ -48,7 +48,7 @@ export async function createAgent(
      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     id, input.workspaceId, input.teamId ?? null, input.name, input.description ?? null,
     input.instructions ?? null, input.status ?? 'draft', input.parentAgentId ?? null,
-    input.type ?? 'interactive', normalizeModelSpecifier(input.model, 'openai/gpt-5.4'), normalizeReasoningEffort(input.reasoningEffort) ?? 'medium',
+    input.type ?? 'interactive', normalizeModelSpecifier(input.model, DEFAULT_AGENT_MODEL), normalizeReasoningEffort(input.reasoningEffort) ?? 'medium',
     input.isPublic ? 1 : 0, input.buildTaskId ?? null,
   );
   return (await getAgentById(db, id))!;
@@ -120,6 +120,7 @@ Phase 2: after the user replies "Build", create the approved resources, update t
 Be explicit when a requested integration or creation capability is unavailable in this Flue deployment.`,
     status: 'published',
     type: 'interactive',
+    model: DEFAULT_AGENT_MODEL,
   });
 }
 
@@ -147,7 +148,7 @@ export async function updateAgent(
      WHERE id = ?`,
     patch.name ?? null, patch.description ?? null, patch.instructions ?? null,
     patch.status ?? null, patch.team_id ?? null,
-    patch.model === undefined ? null : normalizeModelSpecifier(patch.model, 'openai/gpt-5.4'),
+    patch.model === undefined ? null : normalizeModelSpecifier(patch.model, DEFAULT_AGENT_MODEL),
     patch.reasoning_effort === undefined ? null : normalizeReasoningEffort(patch.reasoning_effort),
     patch.is_public ?? null, patch.type ?? null, id,
   );
@@ -181,7 +182,7 @@ export async function cloneAgent(
     ).bind(
       newId, src.workspace_id, patch.team_id ?? src.team_id, patch.name ?? src.name,
       patch.description ?? src.description, patch.instructions ?? src.instructions,
-      rootId, patch.type ?? src.type, normalizeModelSpecifier(patch.model ?? src.model, 'openai/gpt-5.4'),
+      rootId, patch.type ?? src.type, normalizeModelSpecifier(patch.model ?? src.model, DEFAULT_AGENT_MODEL),
       normalizeReasoningEffort(patch.reasoning_effort ?? src.reasoning_effort), patch.is_public ?? src.is_public,
     ),
     ...tools.map((t) =>

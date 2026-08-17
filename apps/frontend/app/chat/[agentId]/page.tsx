@@ -27,6 +27,7 @@ const TASK_STATUSES = [
   "closed",
   "completed",
   "failed",
+  "cancelled",
 ] as const;
 type TaskStatus = (typeof TASK_STATUSES)[number];
 

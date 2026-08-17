@@ -244,6 +244,8 @@ export async function executeFlueWorkflow(workflowName: string, input: WorkflowI
       return request(`/workspaces/${workspaceId(input)}/build-tasks/${input.build_task_id || input.task_id}/session`);
     case "TasksUpdateWorkflow":
       return request(`/workspaces/${workspaceId(input)}/tasks/${taskId(input)}`, { method: "PATCH", body: body(input) });
+    case "TasksCancelWorkflow":
+      return request(`/workspaces/${workspaceId(input)}/tasks/${taskId(input)}/cancel`, { method: "POST", body: body(input) });
     case "TasksDeleteWorkflow":
       return request(`/workspaces/${workspaceId(input)}/tasks/${taskId(input)}`, { method: "DELETE" });
     case "TasksGetStatsWorkflow":

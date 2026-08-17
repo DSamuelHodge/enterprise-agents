@@ -674,7 +674,8 @@ export function TaskChatInterface({
   const isTaskTerminal =
     task?.status === "completed" ||
     task?.status === "failed" ||
-    task?.status === "closed";
+    task?.status === "closed" ||
+    task?.status === "cancelled";
 
   // Transparently use real-time state OR database state
   const todos = useMemo(() => {

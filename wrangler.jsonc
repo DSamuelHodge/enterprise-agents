@@ -71,7 +71,7 @@
   "vars": {
     // Default model for the task agent harness. Per-agent model selection from
     // the agents table is delivered via task briefing (see src/agents/task.ts).
-    "DEFAULT_MODEL": "openai/gpt-5.2",
+    "DEFAULT_MODEL": "openai/gpt-5",
     "FRONTEND_URL": "https://app.hodgeluke.com"
   }
 

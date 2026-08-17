@@ -23,7 +23,7 @@ interface SchedulePageTask {
   id: string;
   title: string;
   description?: string;
-  status: "in_progress" | "in_review" | "closed" | "completed" | "failed";
+  status: "in_progress" | "in_review" | "closed" | "completed" | "failed" | "cancelled";
   agent_id: string;
   agent_name: string;
   assigned_to_id: string;

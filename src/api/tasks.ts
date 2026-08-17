@@ -115,6 +115,23 @@ tasks.patch('/workspaces/:workspaceId/tasks/:taskId', async (c) => {
   return c.json({ task: await updateTask(c.env.DB, c.req.param('taskId'), { title: body['title'] as string | undefined, description: body['description'] as string | undefined, status: body['status'] as TaskStatus | undefined, assignedToId: body['assigned_to_id'] as string | undefined, taskMetadata: body['task_metadata'], viewSpecs: body['view_specs'], patternSpecs: body['pattern_specs'] }) });
 });
 
+tasks.post('/workspaces/:workspaceId/tasks/:taskId/cancel', async (c) => {
+  const workspaceId = c.req.param('workspaceId');
+  const taskId = c.req.param('taskId');
+  const g = await assertMembership(c, workspaceId); if (g) return g;
+  const row = await getTaskById(c.env.DB, taskId);
+  if (!row || row.workspace_id !== workspaceId) return c.json({ error: 'not found' }, 404);
+  const body: Record<string, unknown> = await c.req.json<Record<string, unknown>>().catch(() => ({}));
+  const summary = typeof body['summary'] === 'string' && body['summary'].trim()
+    ? body['summary'].trim()
+    : 'Cancelled by user.';
+  const task = await updateTask(c.env.DB, taskId, {
+    status: 'cancelled',
+    agentState: { summary, finished_at: new Date().toISOString(), stopped_by: c.get('userId') },
+  });
+  return c.json({ task });
+});
+
 tasks.delete('/workspaces/:workspaceId/tasks/:taskId', async (c) => {
   const g = await assertMembership(c, c.req.param('workspaceId')); if (g) return g;
   await deleteTask(c.env.DB, c.req.param('taskId'));
