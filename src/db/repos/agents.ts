@@ -426,10 +426,7 @@ export function listModelProviderConnections(db: D1Database, workspaceId: string
     db,
     `SELECT * FROM user_oauth_connections
      WHERE workspace_id = ?
-       AND (
-         json_extract(provider_metadata, '$.kind') = 'model_provider'
-         OR provider_identity IS NOT NULL
-       )
+       AND json_extract(provider_metadata, '$.kind') = 'model_provider'
      ORDER BY is_default DESC, created_at DESC`,
     workspaceId,
   );

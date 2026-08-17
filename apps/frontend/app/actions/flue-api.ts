@@ -24,6 +24,16 @@ async function setToken(token: string) {
   });
 }
 
+function parseResponse(text: string): Record<string, unknown> {
+  if (!text.trim()) return {};
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    return parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : {};
+  } catch {
+    return { error: text.trim() };
+  }
+}
+
 function qs(params: Record<string, unknown>) {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
@@ -47,9 +57,9 @@ async function request(path: string, init: RequestInit = {}) {
     cache: "no-store",
   });
   const text = await response.text();
-  const data = text ? JSON.parse(text) : {};
+  const data = parseResponse(text);
   if (!response.ok) {
-    throw new Error(data?.error || `Flue API ${response.status}`);
+    throw new Error(String(data.error || `Flue API ${response.status}`));
   }
   return data;
 }
@@ -96,12 +106,12 @@ export async function executeFlueWorkflow(workflowName: string, input: WorkflowI
   switch (workflowName) {
     case "UserLoginWorkflow": {
       const data = await request("/auth/login", { method: "POST", body: body(input) });
-      if (data.token) await setToken(data.token);
+      if (typeof data.token === "string") await setToken(data.token);
       return data;
     }
     case "UserSignupWorkflow": {
       const data = await request("/auth/signup", { method: "POST", body: body(normalizeSignup(input)) });
-      if (data.token) await setToken(data.token);
+      if (typeof data.token === "string") await setToken(data.token);
       return data;
     }
     case "RequestPasswordResetWorkflow":

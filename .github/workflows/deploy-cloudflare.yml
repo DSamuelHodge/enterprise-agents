@@ -42,6 +42,9 @@ jobs:
       - name: Run tests and typechecks
         run: pnpm test
 
+      - name: Apply remote D1 migrations
+        run: pnpm db:migrate
+
       - name: Build and deploy Flue backend
         run: pnpm deploy:backend
 

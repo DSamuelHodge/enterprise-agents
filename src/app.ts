@@ -9,6 +9,11 @@ import api from './api/index.ts';
 
 const app = new Hono<ApiEnv>();
 
+app.onError((error, c) => {
+  console.error('Unhandled Worker error', error);
+  return c.json({ error: 'Internal Server Error' }, 500);
+});
+
 // Keep the managed Cloudflare model path explicit so every task uses the
 // configured AI Gateway instead of relying on an implicit runtime default.
 registerProvider('cloudflare', {

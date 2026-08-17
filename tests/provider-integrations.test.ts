@@ -27,6 +27,7 @@ function createModelProviderRouteDb(connection: Record<string, unknown>) {
             async all<T>() {
               if (sql.includes('FROM mcp_servers')) return { results: [server] as T[] };
               if (sql.includes('FROM user_oauth_connections')) return { results: [connection] as T[] };
+              if (sql.includes('FROM model_provider_models')) throw new Error('no such table: model_provider_models');
               return { results: [] as T[] };
             },
           };
@@ -109,6 +110,7 @@ test('production deployment has a pull-request verification workflow', () => {
   assert.match(ci, /pnpm build:backend/);
   assert.match(ci, /pnpm build:frontend/);
   assert.match(deploy, /pnpm test/);
+  assert.match(deploy, /pnpm db:migrate/);
   assert.match(migration, /provider_identity TEXT/);
   assert.match(migration, /ux_uoc_workspace_provider_identity/);
   assert.match(migration, /row_number\(\)/);
