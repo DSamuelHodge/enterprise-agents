@@ -19,7 +19,7 @@ export interface ModelProviderCatalogEntry {
   models: ModelCatalogEntry[];
 }
 
-export const DEFAULT_AGENT_MODEL = 'openai/gpt-5.4';
+export const DEFAULT_AGENT_MODEL = 'openai/gpt-5';
 export const DEFAULT_JUDGE_MODEL = 'openai/gpt-5-nano';
 
 export const MODEL_CATALOG: ModelCatalogEntry[] = [

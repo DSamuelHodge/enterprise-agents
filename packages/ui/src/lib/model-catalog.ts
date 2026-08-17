@@ -16,7 +16,7 @@ export interface ModelCatalogEntry {
   recommendedFor: "agent" | "judge" | "both";
 }
 
-export const DEFAULT_AGENT_MODEL = "openai/gpt-5.4";
+export const DEFAULT_AGENT_MODEL = "openai/gpt-5";
 export const DEFAULT_JUDGE_MODEL = "openai/gpt-5-nano";
 
 export const MODEL_PROVIDER_LABELS: Record<ModelProviderId, string> = {

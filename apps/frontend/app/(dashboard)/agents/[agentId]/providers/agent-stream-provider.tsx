@@ -167,7 +167,7 @@ export function AgentStreamProvider({
   children 
 }: AgentStreamProviderProps) {
   // Check conditions - use mock provider if ANY condition fails
-  const isTerminalState = taskStatus === 'completed' || taskStatus === 'failed' || taskStatus === 'closed';
+  const isTerminalState = taskStatus === 'completed' || taskStatus === 'failed' || taskStatus === 'closed' || taskStatus === 'cancelled';
   const hasValidAgentId = agentTaskId && agentTaskId.trim() !== '';
   
   // Use mock provider (no subscriptions) if:

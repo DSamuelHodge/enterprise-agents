@@ -48,7 +48,7 @@ export interface Task {
   workspace_id?: string;
   title: string;
   description?: string;
-  status: "in_progress" | "in_review" | "closed" | "completed" | "failed";
+  status: "in_progress" | "in_review" | "closed" | "completed" | "failed" | "cancelled";
   agent_id: string;
   agent_name: string;
   parent_agent_id?: string; // Parent agent ID for child agents (versions)

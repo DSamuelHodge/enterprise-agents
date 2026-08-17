@@ -35,6 +35,8 @@ export interface ModelProviderCredentialInput {
   tokenName?: string | null;
   baseUrl?: string | null;
   api?: string | null;
+  customProviderId?: string | null;
+  defaultModel?: string | null;
 }
 
 export function normalizeOptionalModelSpecifier(model: unknown, fallback?: string): string | undefined {
@@ -61,8 +63,10 @@ export function toThinkingLevel(value: unknown) {
 type ProviderMetadata = {
   kind?: string;
   provider_id?: string;
+  custom_provider_id?: string;
   base_url?: string;
   api?: string;
+  default_model?: string;
 };
 
 const PROVIDER_LABELS: Record<ModelProviderId, string> = {
@@ -155,8 +159,10 @@ export async function upsertModelProviderCredential(env: Env, input: ModelProvid
     providerMetadata: {
       kind: 'model_provider',
       provider_id: input.providerId,
+      custom_provider_id: input.customProviderId?.trim() || undefined,
       base_url: baseUrl,
       api,
+      default_model: input.defaultModel?.trim() || undefined,
     },
     isDefault: true,
   });

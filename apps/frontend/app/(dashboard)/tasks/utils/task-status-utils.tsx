@@ -16,6 +16,7 @@ export const taskStatusOptions = [
   { label: "Closed", value: "closed", icon: CircleX },
   { label: "Completed", value: "completed", icon: CheckCircle },
   { label: "Failed", value: "failed", icon: XCircle },
+  { label: "Cancelled", value: "cancelled", icon: CircleX },
 ];
 
 // Get status color classes
@@ -31,6 +32,8 @@ export const getStatusColor = (status: string): string => {
       return "bg-gray-100 text-gray-800 dark:bg-gray-900/50 dark:text-gray-200";
     case "failed":
       return "bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200";
+    case "cancelled":
+      return "bg-neutral-100 text-neutral-800 dark:bg-neutral-900/50 dark:text-neutral-200";
     default:
       return "bg-gray-100 text-gray-800 dark:bg-gray-900/50 dark:text-gray-200";
   }
@@ -44,6 +47,8 @@ export const getStatusIcon = (status: string, className: string = "w-4 h-4") => 
       return <CheckCircle className={`${className} text-green-600`} />;
     case "failed":
       return <XCircle className={`${className} text-red-600`} />;
+    case "cancelled":
+      return <CircleX className={`${className} text-neutral-600`} />;
     case "in_progress":
       return <CircleDashed className={`${className} text-blue-600`} />;
     case "in_review":
@@ -68,6 +73,8 @@ export const getStatusLabel = (status: string): string => {
   switch (status) {
     case "failed":
       return "Failed";
+    case "cancelled":
+      return "Cancelled";
     case "active":
     case "running":
       return "Running";
@@ -107,6 +114,15 @@ export const getStatusBadge = (
           Failed
         </Badge>
       );
+    case "cancelled":
+      return (
+        <Badge
+          variant={variant}
+          className={`${sizeClass} bg-neutral-50 text-neutral-700 border-neutral-200 dark:bg-neutral-900/50 dark:text-neutral-200 dark:border-neutral-800`}
+        >
+          Cancelled
+        </Badge>
+      );
     case "in_progress":
       return (
         <Badge 
@@ -121,7 +137,7 @@ export const getStatusBadge = (
         <Badge 
           variant={variant} 
           className={`${sizeClass} bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/50 dark:text-orange-200 dark:border-orange-800`}
-        >rReview
+        >Review
         </Badge>
       );
     case "open":

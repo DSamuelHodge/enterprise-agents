@@ -49,7 +49,7 @@ export interface Task {
   id: string;
   title: string;
   description?: string;
-  status: "in_progress" | "in_review" | "closed" | "completed" | "failed";
+  status: "in_progress" | "in_review" | "closed" | "completed" | "failed" | "cancelled";
   agent_id: string;
   agent_name: string;
   type?: "interactive" | "pipeline";

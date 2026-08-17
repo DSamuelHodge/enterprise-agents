@@ -120,7 +120,7 @@ export default function TasksPage() {
   const handleCreateTask = async (taskData: {
     title: string;
     description: string;
-    status: "in_progress" | "in_review" | "closed" | "completed";
+    status: "in_progress" | "in_review" | "closed" | "completed" | "failed" | "cancelled";
     agent_id: string;
     assigned_to_id: string;
     // Schedule-related fields

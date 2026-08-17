@@ -8,6 +8,8 @@
     "dev": "flue dev",
     "dev:backend": "flue dev",
     "dev:frontend": "pnpm --filter boilerplate-frontend dev",
+    "test": "pnpm test:unit && pnpm typecheck && pnpm typecheck:frontend",
+    "test:unit": "pnpm --filter boilerplate-frontend exec tsx --test ../../tests/**/*.test.ts",
     "build:backend": "flue build --target cloudflare",
     "build:frontend": "pnpm --filter boilerplate-frontend build",
     "build:frontend:cloudflare": "pnpm --filter boilerplate-frontend build:cloudflare",

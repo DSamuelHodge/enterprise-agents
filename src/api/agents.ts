@@ -70,7 +70,7 @@ agents.post('/workspaces/:workspaceId/agents', async (c) => {
   const g = await assertMembership(c, c.req.param('workspaceId')); if (g) return g;
   const body = await c.req.json<Record<string, unknown>>();
   try {
-    return c.json({ agent: await createAgent(c.env.DB, { workspaceId: c.req.param('workspaceId'), name: String(body['name'] ?? ''), description: body['description'] as string ?? null, instructions: body['instructions'] as string ?? null, teamId: body['team_id'] as string ?? null, status: body['status'] as AgentRow['status'], type: body['type'] as AgentRow['type'], model: normalizeOptionalModelSpecifier(body['model'], 'openai/gpt-5.4'), reasoningEffort: body['reasoning_effort'], isPublic: Boolean(body['is_public']), buildTaskId: body['build_task_id'] as string ?? null }) }, 201);
+    return c.json({ agent: await createAgent(c.env.DB, { workspaceId: c.req.param('workspaceId'), name: String(body['name'] ?? ''), description: body['description'] as string ?? null, instructions: body['instructions'] as string ?? null, teamId: body['team_id'] as string ?? null, status: body['status'] as AgentRow['status'], type: body['type'] as AgentRow['type'], model: normalizeOptionalModelSpecifier(body['model'], DEFAULT_AGENT_MODEL), reasoningEffort: body['reasoning_effort'], isPublic: Boolean(body['is_public']), buildTaskId: body['build_task_id'] as string ?? null }) }, 201);
   } catch (err) { return c.json({ error: String(err) }, 400); }
 });
 
@@ -99,7 +99,7 @@ agents.post('/workspaces/:workspaceId/agents/:agentId/clone', async (c) => {
   for (const key of ['name', 'description', 'instructions', 'status', 'team_id', 'type', 'is_public']) {
     if (body[key] !== undefined) patch[key] = body[key];
   }
-  if (body['model'] !== undefined) patch['model'] = normalizeModelSpecifier(String(body['model']), 'openai/gpt-5.4');
+  if (body['model'] !== undefined) patch['model'] = normalizeModelSpecifier(String(body['model']), DEFAULT_AGENT_MODEL);
   if (body['reasoning_effort'] !== undefined) patch['reasoning_effort'] = normalizeReasoningEffort(body['reasoning_effort']);
   const updated = Object.keys(patch).length > 0 ? await updateAgent(c.env.DB, agent.id, patch as never) : agent;
   return c.json({ agent: updated }, 201);
@@ -111,7 +111,7 @@ agents.patch('/workspaces/:workspaceId/agents/:agentId', async (c) => {
   if (!agent || agent.workspace_id !== c.req.param('workspaceId')) return c.json({ error: 'not found' }, 404);
   const body = await c.req.json<Record<string, unknown>>();
   try {
-    if (body['model'] !== undefined) body['model'] = normalizeModelSpecifier(String(body['model']), 'openai/gpt-5.4');
+    if (body['model'] !== undefined) body['model'] = normalizeModelSpecifier(String(body['model']), DEFAULT_AGENT_MODEL);
     if (body['reasoning_effort'] !== undefined) body['reasoning_effort'] = normalizeReasoningEffort(body['reasoning_effort']);
     return c.json({ agent: await updateAgent(c.env.DB, c.req.param('agentId'), body as never) });
   }
@@ -230,7 +230,7 @@ agents.get('/workspaces/:workspaceId/model-providers', async (c) => {
         provider_id: metadata['provider_id'],
         custom_provider_id: metadata['custom_provider_id'] ?? null,
         base_url: metadata['base_url'] ?? null,
-        api_protocol: metadata['api_protocol'] ?? null,
+        api_protocol: metadata['api'] ?? metadata['api_protocol'] ?? null,
         default_model: metadata['default_model'] ?? null,
         token_name: r.token_name,
         is_default: r.is_default === 1,
@@ -258,6 +258,8 @@ agents.post('/workspaces/:workspaceId/model-provider-connections', async (c) => 
       tokenName: body['token_name'] as string ?? null,
       baseUrl: body['base_url'] as string ?? null,
       api: (body['api'] ?? body['api_protocol']) as string ?? null,
+      customProviderId: body['custom_provider_id'] as string ?? null,
+      defaultModel: body['default_model'] as string ?? null,
     });
     return c.json({ connection: { id: conn.id, provider_id: providerId, token_name: conn.token_name, is_default: true } }, 201);
   } catch (err) {

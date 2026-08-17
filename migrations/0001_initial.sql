@@ -81,7 +81,7 @@ CREATE TABLE IF NOT EXISTS agents (
     status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('published','draft','archived')),
     parent_agent_id TEXT REFERENCES agents(id) ON DELETE SET NULL,
     type TEXT NOT NULL DEFAULT 'interactive' CHECK (type IN ('interactive','pipeline')),
-    model TEXT NOT NULL DEFAULT 'openai/gpt-5.4' CHECK (length(model) > 0 AND length(model) <= 180),
+    model TEXT NOT NULL DEFAULT 'openai/gpt-5' CHECK (length(model) > 0 AND length(model) <= 180),
     reasoning_effort TEXT DEFAULT 'medium' CHECK (reasoning_effort IN ('none','minimal','low','medium','high','xhigh')),
     is_public INTEGER NOT NULL DEFAULT 0,                     -- 004
     build_task_id TEXT REFERENCES tasks(id) ON DELETE SET NULL, -- 015
@@ -208,7 +208,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     title TEXT NOT NULL,
     description TEXT,
     status TEXT NOT NULL DEFAULT 'in_progress'
-      CHECK (status IN ('in_progress','in_review','closed','completed','failed')),
+      CHECK (status IN ('in_progress','in_review','closed','completed','failed','cancelled')),
     agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
     assigned_to_id TEXT REFERENCES users(id) ON DELETE CASCADE,
     flue_agent_id TEXT,             -- Flue agent instance id (was temporal_agent_id)

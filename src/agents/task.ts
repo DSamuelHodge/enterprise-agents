@@ -15,6 +15,10 @@ function toolResult(value: unknown) {
   return JSON.parse(JSON.stringify(value)) as never;
 }
 
+function isTerminalTaskStatus(status: string) {
+  return status === 'completed' || status === 'failed' || status === 'closed' || status === 'cancelled';
+}
+
 const BASE_INSTRUCTIONS = `You are a task agent operating inside a workspace platform.
 Each conversation is bound to exactly one task. Your first action on any new
 task MUST be to call get_task_context — it returns the task briefing: the
@@ -69,8 +73,8 @@ export const task = defineAgent<Env>(async ({ id, env }) => {
 
     defineTool({
       name: 'update_task_status',
-      description: 'Update the task status. Statuses: in_progress, in_review, completed, failed, closed.',
-      input: v.object({ status: v.picklist(['in_progress','in_review','completed','failed','closed']), summary: v.optional(v.string()) }),
+      description: 'Update the task status. Statuses: in_progress, in_review, completed, failed, closed, cancelled.',
+      input: v.object({ status: v.picklist(['in_progress','in_review','completed','failed','closed','cancelled']), summary: v.optional(v.string()) }),
       async run({ input }) {
         const taskRow = await getTaskById(env.DB, id);
         if (!taskRow) return { error: `no task row for ${id}` };
@@ -81,9 +85,9 @@ export const task = defineAgent<Env>(async ({ id, env }) => {
         }
         const updated = await updateTask(env.DB, id, {
           status: input.status,
-          agentState: (input.status === 'completed' || input.status === 'failed') ? { summary: input.summary ?? null, finished_at: new Date().toISOString() } : undefined,
+          agentState: isTerminalTaskStatus(input.status) ? { summary: input.summary ?? null, finished_at: new Date().toISOString() } : undefined,
         });
-        if (updated && (input.status === 'completed' || input.status === 'failed')) {
+        if (updated && isTerminalTaskStatus(input.status)) {
           const startedMs = Date.parse(updated.created_at);
           writeTaskMetric(env, { workspaceId: updated.workspace_id, taskId: updated.id, agentId: updated.agent_id, metricCategory: 'performance', status: input.status, durationMs: Number.isFinite(startedMs) ? Date.now() - startedMs : 0 });
           if (updated.parent_task_id) {
@@ -156,7 +160,7 @@ export const task = defineAgent<Env>(async ({ id, env }) => {
         input: v.object({
           pattern_specs: v.optional(v.unknown()),
           view_specs: v.optional(v.unknown()),
-          status: v.optional(v.picklist(['in_progress','in_review','completed','failed','closed'])),
+          status: v.optional(v.picklist(['in_progress','in_review','completed','failed','closed','cancelled'])),
           summary: v.optional(v.string()),
         }),
         async run({ input }) {

@@ -138,7 +138,7 @@ export interface UserOauthConnectionRow {
   updated_at: string;
 }
 
-export type TaskStatus = 'in_progress' | 'in_review' | 'closed' | 'completed' | 'failed';
+export type TaskStatus = 'in_progress' | 'in_review' | 'closed' | 'completed' | 'failed' | 'cancelled';
 
 export interface TaskRow {
   id: string;
