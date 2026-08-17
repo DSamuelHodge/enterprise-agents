@@ -503,6 +503,42 @@ export async function upsertOauthToken(
       return (await one<UserOauthConnectionRow>(db, `SELECT * FROM user_oauth_connections WHERE id = ?`, existing.id))!;
     }
   }
+  const providerMetadata = input.providerMetadata as { kind?: string; provider_id?: string } | undefined;
+  if (input.authType === 'bearer' && providerMetadata?.kind === 'model_provider' && providerMetadata.provider_id) {
+    const existing = await one<UserOauthConnectionRow>(
+      db,
+      `SELECT * FROM user_oauth_connections
+       WHERE workspace_id = ? AND auth_type = 'bearer'
+         AND json_extract(provider_metadata, '$.kind') = 'model_provider'
+         AND json_extract(provider_metadata, '$.provider_id') = ?
+       ORDER BY is_default DESC, created_at DESC LIMIT 1`,
+      input.workspaceId, providerMetadata.provider_id,
+    );
+    if (existing) {
+      await db.batch([
+        db.prepare(
+          `UPDATE user_oauth_connections SET is_default = 0
+           WHERE workspace_id = ?
+             AND json_extract(provider_metadata, '$.kind') = 'model_provider'
+             AND json_extract(provider_metadata, '$.provider_id') = ?`,
+        ).bind(input.workspaceId, providerMetadata.provider_id),
+        db.prepare(
+          `UPDATE user_oauth_connections SET
+             access_token = ?, refresh_token = COALESCE(?, refresh_token),
+             token_type = COALESCE(?, token_type), token_name = COALESCE(?, token_name),
+             expires_at = ?, scope = COALESCE(?, scope), provider_metadata = ?,
+             is_default = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+           WHERE id = ?`,
+        ).bind(
+          input.accessTokenEnc, input.refreshTokenEnc ?? null, input.tokenType ?? null,
+          input.tokenName ?? null, input.expiresAt ?? null,
+          input.scope ? JSON.stringify(input.scope) : null,
+          JSON.stringify(input.providerMetadata ?? {}), input.isDefault ? 1 : 0, existing.id,
+        ),
+      ]);
+      return (await one<UserOauthConnectionRow>(db, `SELECT * FROM user_oauth_connections WHERE id = ?`, existing.id))!;
+    }
+  }
   const id = uuid();
   await run(
     db,

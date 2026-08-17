@@ -164,6 +164,9 @@ export interface McpServer {
 export interface ModelProviderConnection {
   id: string;
   provider_id: string;
+  provider_label?: string | null;
+  server_id?: string | null;
+  credential_configured?: boolean;
   custom_provider_id?: string | null;
   base_url?: string | null;
   api_protocol?: string | null;
@@ -177,6 +180,7 @@ export interface ModelProviderStatus {
   provider_id: string;
   label: string;
   description?: string;
+  credential_required?: boolean;
   configured?: boolean;
   credential_configured?: boolean;
   env_configured?: boolean;

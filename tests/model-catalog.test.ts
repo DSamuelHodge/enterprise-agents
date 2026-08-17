@@ -13,7 +13,7 @@ import {
 } from '../packages/ui/src/lib/model-catalog.ts';
 
 test('backend and frontend use the same non-preview default agent model', () => {
-  assert.equal(DEFAULT_AGENT_MODEL, 'openai/gpt-5');
+  assert.equal(DEFAULT_AGENT_MODEL, 'cloudflare/@cf/moonshotai/kimi-k2.6');
   assert.equal(UI_DEFAULT_AGENT_MODEL, DEFAULT_AGENT_MODEL);
 });
 
@@ -25,6 +25,6 @@ test('backend model normalization qualifies legacy OpenAI ids', () => {
 
 test('frontend model normalization and provider extraction match backend defaults', () => {
   assert.equal(normalizeUiModelSpecifier('gpt-5'), 'openai/gpt-5');
-  assert.equal(getModelProvider(undefined), 'openai');
+  assert.equal(getModelProvider(undefined), 'cloudflare');
   assert.equal(getProviderFromModel('cloudflare/@cf/moonshotai/kimi-k2.6'), 'cloudflare');
 });

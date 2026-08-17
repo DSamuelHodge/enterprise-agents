@@ -40,7 +40,7 @@ export function AddModelProviderDialog({
 }: AddModelProviderDialogProps) {
   const { createModelProviderConnection } = useWorkspaceScopedActions();
   const configurableProviders = useMemo(
-    () => providers.filter((provider) => provider.provider_id !== "cloudflare"),
+    () => providers.filter((provider) => provider.credential_required !== false),
     [providers],
   );
   const [providerId, setProviderId] = useState("");
@@ -48,6 +48,7 @@ export function AddModelProviderDialog({
   const [apiKey, setApiKey] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
   const [apiProtocol, setApiProtocol] = useState("openai-completions");
+  const [defaultModel, setDefaultModel] = useState("");
   const [showKey, setShowKey] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,6 +57,7 @@ export function AddModelProviderDialog({
     (provider) => provider.provider_id === providerId,
   );
   const isCustom = providerId === "custom";
+  const availableModels = selectedProvider?.models ?? [];
 
   const reset = () => {
     setProviderId("");
@@ -63,6 +65,7 @@ export function AddModelProviderDialog({
     setApiKey("");
     setBaseUrl("");
     setApiProtocol("openai-completions");
+    setDefaultModel("");
     setShowKey(false);
     setError(null);
   };
@@ -88,6 +91,7 @@ export function AddModelProviderDialog({
         custom_provider_id: isCustom ? "custom" : undefined,
         base_url: isCustom ? baseUrl : undefined,
         api_protocol: isCustom ? apiProtocol : undefined,
+        default_model: defaultModel || undefined,
       });
       if (!result.success) {
         setError(result.error || "Failed to save provider");
@@ -166,6 +170,24 @@ export function AddModelProviderDialog({
                 </Select>
               </div>
             </>
+          )}
+
+          {availableModels.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="model-provider-default-model">Default model</Label>
+              <Select value={defaultModel} onValueChange={setDefaultModel}>
+                <SelectTrigger id="model-provider-default-model">
+                  <SelectValue placeholder="Select a default model" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableModels.map((model) => (
+                    <SelectItem key={model.value} value={model.value}>
+                      {model.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           )}
 
           <div className="space-y-2">

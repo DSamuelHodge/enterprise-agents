@@ -166,7 +166,11 @@ export function CreateTaskForm({
 
   const providerConfiguredForAgent = (agentId: string) => {
     const provider = getModelProvider(findSelectedAgent(agentId)?.model);
-    if (provider === "openai") return hasWorkspaceOpenAIToken;
+    if (provider === "openai") {
+      return hasWorkspaceOpenAIToken || modelProviders.connections.some(
+        (connection) => connection.provider_id === provider,
+      );
+    }
     if (provider === "cloudflare") return true;
     return modelProviders.connections.some(
       (connection) => connection.provider_id === provider,

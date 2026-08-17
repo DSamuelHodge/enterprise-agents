@@ -16,15 +16,15 @@ export interface ModelCatalogEntry {
   recommendedFor: "agent" | "judge" | "both";
 }
 
-export const DEFAULT_AGENT_MODEL = "openai/gpt-5";
-export const DEFAULT_JUDGE_MODEL = "openai/gpt-5-nano";
+export const DEFAULT_AGENT_MODEL = "cloudflare/@cf/moonshotai/kimi-k2.6";
+export const DEFAULT_JUDGE_MODEL = "cloudflare/@cf/meta/llama-3.1-8b-instruct";
 
 export const MODEL_PROVIDER_LABELS: Record<ModelProviderId, string> = {
   openai: "OpenAI",
   anthropic: "Anthropic",
   google: "Google Gemini",
   openrouter: "OpenRouter",
-  cloudflare: "Cloudflare Workers AI",
+  cloudflare: "Cloudflare AI Gateway",
   "cloudflare-workers-ai": "Cloudflare Workers AI API",
   "cloudflare-ai-gateway": "Cloudflare AI Gateway",
   custom: "Custom",
@@ -44,6 +44,7 @@ export const MODEL_CATALOG: ModelCatalogEntry[] = [
   { id: "openrouter/moonshotai/kimi-k2.6", provider: "openrouter", label: "Kimi K2.6 via OpenRouter", supportsReasoning: false, recommendedFor: "both" },
   { id: "cloudflare/@cf/meta/llama-3.1-8b-instruct", provider: "cloudflare", label: "Llama 3.1 8B via Workers AI", supportsReasoning: false, recommendedFor: "agent" },
   { id: "cloudflare/@cf/mistral/mistral-7b-instruct-v0.1", provider: "cloudflare", label: "Mistral 7B via Workers AI", supportsReasoning: false, recommendedFor: "agent" },
+  { id: "cloudflare/@cf/moonshotai/kimi-k2.6", provider: "cloudflare", label: "Kimi K2.6 via AI Gateway", supportsReasoning: true, recommendedFor: "both" },
   { id: "custom/default", provider: "custom", label: "Custom default model", supportsReasoning: false, recommendedFor: "both" },
 ];
 

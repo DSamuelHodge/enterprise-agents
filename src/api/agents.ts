@@ -50,7 +50,7 @@ agents.get('/models', (c) => c.json({
   providers: MODEL_PROVIDER_CATALOG.map((provider) => ({
     id: provider.id,
     label: provider.label,
-    credential_required: provider.id !== 'cloudflare',
+    credential_required: provider.credentialRequired !== false,
     env_var: provider.envVar ?? null,
     description: provider.description,
   })),
@@ -228,6 +228,9 @@ agents.get('/workspaces/:workspaceId/model-providers', async (c) => {
       return {
         id: r.id,
         provider_id: metadata['provider_id'],
+        provider_label: MODEL_PROVIDER_CATALOG.find((provider) => provider.id === metadata['provider_id'])?.label ?? metadata['provider_id'],
+        server_id: r.mcp_server_id,
+        credential_configured: true,
         custom_provider_id: metadata['custom_provider_id'] ?? null,
         base_url: metadata['base_url'] ?? null,
         api_protocol: metadata['api'] ?? metadata['api_protocol'] ?? null,

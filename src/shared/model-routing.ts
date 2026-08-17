@@ -19,6 +19,7 @@ export interface ModelProviderStatus {
   provider_id: ModelProviderId;
   label: string;
   description: string;
+  credential_required: boolean;
   configured: boolean;
   credential_configured: boolean;
   env_configured: boolean;
@@ -129,6 +130,7 @@ export async function listModelProviderStatuses(env: Env, workspaceId: string): 
       provider_id: provider.id,
       label: provider.label,
       description: provider.description,
+      credential_required: provider.credentialRequired !== false,
       configured: credentialConfigured || envConfigured,
       credential_configured: credentialConfigured,
       env_configured: envConfigured,
@@ -142,11 +144,19 @@ export async function listModelProviderStatuses(env: Env, workspaceId: string): 
 export async function upsertModelProviderCredential(env: Env, input: ModelProviderCredentialInput) {
   const catalogEntry = MODEL_PROVIDER_CATALOG.find((provider) => provider.id === input.providerId);
   if (!catalogEntry) throw new Error(`unsupported model provider: ${input.providerId}`);
+  if (catalogEntry.credentialRequired === false) throw new Error(`${catalogEntry.label} uses the Worker binding and does not accept a workspace API key`);
   if (!input.apiKey.trim()) throw new Error('api_key is required');
   const baseUrl = input.baseUrl?.trim() || catalogEntry.baseUrl;
   if (input.providerId === 'custom' && !baseUrl) throw new Error('base_url is required for custom providers');
   const api = input.api?.trim() || catalogEntry.api;
   if (input.providerId === 'custom' && !api) throw new Error('api is required for custom providers');
+  let defaultModel = input.defaultModel?.trim() || undefined;
+  if (defaultModel) {
+    defaultModel = normalizeModelSpecifier(defaultModel, catalogEntry.models[0]?.id);
+    if (getProviderFromModel(defaultModel) !== input.providerId) {
+      throw new Error(`default_model must belong to the ${catalogEntry.label} provider`);
+    }
+  }
   const server = await ensureModelProviderServer(env.DB, input.workspaceId, input.providerId);
   const token = await upsertOauthToken(env.DB, {
     userId: input.userId,
@@ -162,7 +172,7 @@ export async function upsertModelProviderCredential(env: Env, input: ModelProvid
       custom_provider_id: input.customProviderId?.trim() || undefined,
       base_url: baseUrl,
       api,
-      default_model: input.defaultModel?.trim() || undefined,
+      default_model: defaultModel,
     },
     isDefault: true,
   });

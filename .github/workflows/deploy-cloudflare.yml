@@ -39,11 +39,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Typecheck backend
-        run: pnpm typecheck
-
-      - name: Typecheck frontend
-        run: pnpm typecheck:frontend
+      - name: Run tests and typechecks
+        run: pnpm test
 
       - name: Build and deploy Flue backend
         run: pnpm deploy:backend
