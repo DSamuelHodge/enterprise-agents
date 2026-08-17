@@ -115,11 +115,18 @@ export async function ensureModelProviderServer(
 }
 
 export async function listModelProviderStatuses(env: Env, workspaceId: string): Promise<ModelProviderStatus[]> {
-  const [servers, connections, cachedModels] = await Promise.all([
+  const [servers, connections] = await Promise.all([
     listMcpServers(env.DB, workspaceId),
     listOauthConnections(env.DB, workspaceId),
-    listModelProviderModels(env.DB, workspaceId),
   ]);
+  let cachedModels: Awaited<ReturnType<typeof listModelProviderModels>> = [];
+  try {
+    cachedModels = await listModelProviderModels(env.DB, workspaceId);
+  } catch (error) {
+    // Keep provider selection available while an older deployment catches up
+    // with the provider-model cache migration.
+    console.error('Unable to read cached model-provider models', error);
+  }
   const serverLabelById = new Map(servers.map((server) => [server.id, server.server_label]));
   return MODEL_PROVIDER_CATALOG.map((provider) => {
     const label = PROVIDER_LABELS[provider.id];
