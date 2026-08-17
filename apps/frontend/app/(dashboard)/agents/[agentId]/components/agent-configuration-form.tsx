@@ -56,6 +56,7 @@ interface AgentConfigurationFormProps {
   validateName?: boolean;
   nameError?: string;
   onNameValidation?: (isValid: boolean, error: string) => void;
+  modelOptions?: Array<{ value: string; label: string }>;
 }
 
 // Helper component for layout
@@ -95,6 +96,7 @@ export function AgentConfigurationForm({
   validateName = true,
   nameError: externalNameError,
   onNameValidation,
+  modelOptions = MODEL_OPTIONS,
 }: AgentConfigurationFormProps) {
   // Controlled component - use data from props
   const name = data?.name || "";
@@ -185,24 +187,20 @@ export function AgentConfigurationForm({
               <Label htmlFor="agent-model" className="text-xs">
                 Model
               </Label>
-              <Select
+              <Input
+                id="agent-model"
                 value={model}
-                onValueChange={(v) => {
-                  onChange({ model: v });
-                }}
+                onChange={(event) => onChange({ model: event.target.value })}
                 disabled={isReadOnly}
-              >
-                <SelectTrigger className={variant === "compact" ? "mt-1" : ""}>
-                  <SelectValue placeholder="Select model" />
-                </SelectTrigger>
-                <SelectContent>
-                  {MODEL_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                list="agent-model-options"
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <datalist id="agent-model-options">
+                {modelOptions.map((option) => (
+                  <option key={option.value} value={option.value} label={option.label} />
+                ))}
+              </datalist>
               <p className="text-xs text-muted-foreground">
                 Provider: {MODEL_PROVIDER_LABELS[getModelProvider(model)]}
               </p>

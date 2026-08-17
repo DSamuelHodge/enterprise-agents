@@ -118,7 +118,13 @@ export function AddModelProviderDialog({
         <div className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="model-provider">Provider</Label>
-            <Select value={providerId} onValueChange={setProviderId}>
+            <Select
+              value={providerId}
+              onValueChange={(nextProviderId) => {
+                setProviderId(nextProviderId);
+                setDefaultModel("");
+              }}
+            >
               <SelectTrigger id="model-provider">
                 <SelectValue placeholder="Select provider" />
               </SelectTrigger>
@@ -172,21 +178,26 @@ export function AddModelProviderDialog({
             </>
           )}
 
-          {availableModels.length > 0 && (
+          {selectedProvider && (
             <div className="space-y-2">
-              <Label htmlFor="model-provider-default-model">Default model</Label>
-              <Select value={defaultModel} onValueChange={setDefaultModel}>
-                <SelectTrigger id="model-provider-default-model">
-                  <SelectValue placeholder="Select a default model" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableModels.map((model) => (
-                    <SelectItem key={model.value} value={model.value}>
-                      {model.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="model-provider-default-model">Default model ID</Label>
+              <Input
+                id="model-provider-default-model"
+                value={defaultModel}
+                onChange={(event) => setDefaultModel(event.target.value)}
+                placeholder={`${providerId}/your-model-id`}
+                list="model-provider-model-options"
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <datalist id="model-provider-model-options">
+                {availableModels.map((model) => (
+                  <option key={model.value} value={model.value} label={model.label} />
+                ))}
+              </datalist>
+              <p className="text-xs text-muted-foreground">
+                Choose a discovered model or enter any model ID supported by this provider.
+              </p>
             </div>
           )}
 

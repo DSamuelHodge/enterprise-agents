@@ -11,6 +11,7 @@ import type {
   AgentRow,
   AgentSubagentRow,
   AgentToolRow,
+  ModelProviderModelRow,
   McpServerRow,
   ToolType,
   UserOauthConnectionRow,
@@ -425,10 +426,52 @@ export function listModelProviderConnections(db: D1Database, workspaceId: string
     db,
     `SELECT * FROM user_oauth_connections
      WHERE workspace_id = ?
-       AND json_extract(provider_metadata, '$.kind') = 'model_provider'
+       AND (
+         json_extract(provider_metadata, '$.kind') = 'model_provider'
+         OR provider_identity IS NOT NULL
+       )
      ORDER BY is_default DESC, created_at DESC`,
     workspaceId,
   );
+}
+
+export function listModelProviderModels(db: D1Database, workspaceId: string) {
+  return many<ModelProviderModelRow>(
+    db,
+    `SELECT * FROM model_provider_models
+     WHERE workspace_id = ?
+     ORDER BY provider_id, label COLLATE NOCASE`,
+    workspaceId,
+  );
+}
+
+export async function replaceModelProviderModels(
+  db: D1Database,
+  workspaceId: string,
+  providerId: string,
+  models: Array<{ modelId: string; label: string; metadata?: unknown }>,
+) {
+  const statements: D1PreparedStatement[] = [
+    db.prepare(
+      `DELETE FROM model_provider_models WHERE workspace_id = ? AND provider_id = ?`,
+    ).bind(workspaceId, providerId),
+    ...models.map((model) => db.prepare(
+      `INSERT INTO model_provider_models
+         (workspace_id, provider_id, model_id, label, metadata, fetched_at)
+       VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+       ON CONFLICT(workspace_id, provider_id, model_id) DO UPDATE SET
+         label = excluded.label,
+         metadata = excluded.metadata,
+         fetched_at = excluded.fetched_at`,
+    ).bind(
+      workspaceId,
+      providerId,
+      model.modelId,
+      model.label,
+      JSON.stringify(model.metadata ?? {}),
+    )),
+  ];
+  await db.batch(statements);
 }
 
 export function getModelProviderServer(db: D1Database, workspaceId: string, providerId: string) {
@@ -479,6 +522,7 @@ export async function upsertOauthToken(
     resourceServer?: string | null;
     audience?: string | null;
     providerMetadata?: unknown;
+    providerIdentity?: string | null;
     isDefault?: boolean;
   },
 ): Promise<UserOauthConnectionRow> {
@@ -503,49 +547,68 @@ export async function upsertOauthToken(
       return (await one<UserOauthConnectionRow>(db, `SELECT * FROM user_oauth_connections WHERE id = ?`, existing.id))!;
     }
   }
-  const providerMetadata = input.providerMetadata as { kind?: string; provider_id?: string } | undefined;
-  if (input.authType === 'bearer' && providerMetadata?.kind === 'model_provider' && providerMetadata.provider_id) {
-    const existing = await one<UserOauthConnectionRow>(
+  const providerMetadata = input.providerMetadata as { kind?: string; provider_id?: string; provider_identity?: string } | undefined;
+  const providerIdentity = input.providerIdentity ?? providerMetadata?.provider_identity ?? null;
+  if (input.authType === 'bearer' && providerMetadata?.kind === 'model_provider' && providerIdentity) {
+    const metadata = JSON.stringify({
+      ...(providerMetadata ?? {}),
+      provider_identity: providerIdentity,
+    });
+    const defaultStatements = [
+      db.prepare(
+        `UPDATE user_oauth_connections SET is_default = 0
+         WHERE workspace_id = ? AND auth_type = 'bearer' AND provider_identity = ?`,
+      ).bind(input.workspaceId, providerIdentity),
+      db.prepare(
+        `INSERT INTO user_oauth_connections
+           (id, user_id, workspace_id, mcp_server_id, auth_type, access_token, refresh_token,
+            token_type, token_name, expires_at, scope, resource_server, audience,
+            is_default, provider_metadata, provider_identity, last_refreshed_at, updated_at)
+         VALUES (?, ?, ?, ?, 'bearer', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                 strftime('%Y-%m-%dT%H:%M:%fZ','now'), strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+         ON CONFLICT(workspace_id, provider_identity)
+         WHERE auth_type = 'bearer' AND provider_identity IS NOT NULL
+         DO UPDATE SET
+           user_id = excluded.user_id,
+           mcp_server_id = excluded.mcp_server_id,
+           access_token = excluded.access_token,
+           refresh_token = COALESCE(excluded.refresh_token, user_oauth_connections.refresh_token),
+           token_type = COALESCE(excluded.token_type, user_oauth_connections.token_type),
+           token_name = COALESCE(excluded.token_name, user_oauth_connections.token_name),
+           expires_at = excluded.expires_at,
+           scope = COALESCE(excluded.scope, user_oauth_connections.scope),
+           resource_server = COALESCE(excluded.resource_server, user_oauth_connections.resource_server),
+           audience = COALESCE(excluded.audience, user_oauth_connections.audience),
+           is_default = excluded.is_default,
+           provider_metadata = excluded.provider_metadata,
+           last_refreshed_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'),
+           updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')`,
+      ).bind(
+        uuid(), input.userId, input.workspaceId, input.mcpServerId,
+        input.accessTokenEnc, input.refreshTokenEnc ?? null, input.tokenType ?? 'Bearer',
+        input.tokenName ?? null, input.expiresAt ?? null,
+        input.scope ? JSON.stringify(input.scope) : null,
+        input.resourceServer ?? null, input.audience ?? null,
+        input.isDefault === false ? 0 : 1, metadata, providerIdentity,
+      ),
+    ];
+    await db.batch(defaultStatements);
+    return (await one<UserOauthConnectionRow>(
       db,
       `SELECT * FROM user_oauth_connections
-       WHERE workspace_id = ? AND auth_type = 'bearer'
-         AND json_extract(provider_metadata, '$.kind') = 'model_provider'
-         AND json_extract(provider_metadata, '$.provider_id') = ?
-       ORDER BY is_default DESC, created_at DESC LIMIT 1`,
-      input.workspaceId, providerMetadata.provider_id,
-    );
-    if (existing) {
-      await db.batch([
-        db.prepare(
-          `UPDATE user_oauth_connections SET is_default = 0
-           WHERE workspace_id = ?
-             AND json_extract(provider_metadata, '$.kind') = 'model_provider'
-             AND json_extract(provider_metadata, '$.provider_id') = ?`,
-        ).bind(input.workspaceId, providerMetadata.provider_id),
-        db.prepare(
-          `UPDATE user_oauth_connections SET
-             access_token = ?, refresh_token = COALESCE(?, refresh_token),
-             token_type = COALESCE(?, token_type), token_name = COALESCE(?, token_name),
-             expires_at = ?, scope = COALESCE(?, scope), provider_metadata = ?,
-             is_default = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
-           WHERE id = ?`,
-        ).bind(
-          input.accessTokenEnc, input.refreshTokenEnc ?? null, input.tokenType ?? null,
-          input.tokenName ?? null, input.expiresAt ?? null,
-          input.scope ? JSON.stringify(input.scope) : null,
-          JSON.stringify(input.providerMetadata ?? {}), input.isDefault ? 1 : 0, existing.id,
-        ),
-      ]);
-      return (await one<UserOauthConnectionRow>(db, `SELECT * FROM user_oauth_connections WHERE id = ?`, existing.id))!;
-    }
+       WHERE workspace_id = ? AND provider_identity = ? AND auth_type = 'bearer'`,
+      input.workspaceId,
+      providerIdentity,
+    ))!;
   }
   const id = uuid();
   await run(
     db,
     `INSERT INTO user_oauth_connections
        (id, user_id, workspace_id, mcp_server_id, auth_type, access_token, refresh_token,
-        token_type, token_name, expires_at, scope, resource_server, audience, is_default, provider_metadata)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        token_type, token_name, expires_at, scope, resource_server, audience, is_default,
+        provider_metadata, provider_identity)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     id, input.userId, input.workspaceId, input.mcpServerId, input.authType,
     input.accessTokenEnc, input.refreshTokenEnc ?? null, input.tokenType ?? 'Bearer',
     input.tokenName ?? null, input.expiresAt ?? null,
@@ -553,6 +616,7 @@ export async function upsertOauthToken(
     input.resourceServer ?? null, input.audience ?? null,
     input.isDefault ? 1 : 0,
     JSON.stringify(input.providerMetadata ?? {}),
+    providerIdentity,
   );
   return (await one<UserOauthConnectionRow>(db, `SELECT * FROM user_oauth_connections WHERE id = ?`, id))!;
 }

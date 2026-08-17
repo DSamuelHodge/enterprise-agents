@@ -1,5 +1,5 @@
 import { json } from '../db/client.ts';
-import { createMcpServer, listMcpServers, listOauthConnections, upsertOauthToken } from '../db/repos/agents.ts';
+import { createMcpServer, listMcpServers, listModelProviderModels, listOauthConnections, replaceModelProviderModels, upsertOauthToken } from '../db/repos/agents.ts';
 import type { UserOauthConnectionRow } from '../db/types.ts';
 import type { Env } from '../env.d.ts';
 import { decryptSecret, encryptSecret } from './crypto.ts';
@@ -26,6 +26,7 @@ export interface ModelProviderStatus {
   server_id: string | null;
   base_url: string | null;
   models: { value: string; label: string }[];
+  models_fetched_at: string | null;
 }
 
 export interface ModelProviderCredentialInput {
@@ -68,6 +69,7 @@ type ProviderMetadata = {
   base_url?: string;
   api?: string;
   default_model?: string;
+  provider_identity?: string;
 };
 
 const PROVIDER_LABELS: Record<ModelProviderId, string> = {
@@ -75,7 +77,7 @@ const PROVIDER_LABELS: Record<ModelProviderId, string> = {
   anthropic: 'Anthropic',
   google: 'Google Gemini',
   openrouter: 'OpenRouter',
-  cloudflare: 'Cloudflare Workers AI',
+  cloudflare: 'Cloudflare AI Gateway',
   custom: 'Custom Model Provider',
 };
 
@@ -113,9 +115,10 @@ export async function ensureModelProviderServer(
 }
 
 export async function listModelProviderStatuses(env: Env, workspaceId: string): Promise<ModelProviderStatus[]> {
-  const [servers, connections] = await Promise.all([
+  const [servers, connections, cachedModels] = await Promise.all([
     listMcpServers(env.DB, workspaceId),
     listOauthConnections(env.DB, workspaceId),
+    listModelProviderModels(env.DB, workspaceId),
   ]);
   const serverLabelById = new Map(servers.map((server) => [server.id, server.server_label]));
   return MODEL_PROVIDER_CATALOG.map((provider) => {
@@ -126,6 +129,11 @@ export async function listModelProviderStatuses(env: Env, workspaceId: string): 
       isConnectionForProvider(connection, provider.id, serverLabelById.get(connection.mcp_server_id))
     );
     const envConfigured = provider.id === 'cloudflare' || envKeyConfigured(env, provider.envVar);
+    const providerCachedModels = cachedModels.filter((model) => model.provider_id === provider.id);
+    const catalogModels = provider.models.map((model) => ({ value: model.id, label: model.label }));
+    const models = providerCachedModels.length > 0
+      ? providerCachedModels.map((model) => ({ value: model.model_id, label: model.label }))
+      : catalogModels;
     return {
       provider_id: provider.id,
       label: provider.label,
@@ -136,9 +144,86 @@ export async function listModelProviderStatuses(env: Env, workspaceId: string): 
       env_configured: envConfigured,
       server_id: server?.id ?? null,
       base_url: provider.baseUrl ?? null,
-      models: provider.models.map((model) => ({ value: model.id, label: model.label })),
+      models,
+      models_fetched_at: providerCachedModels[0]?.fetched_at ?? null,
     };
   });
+}
+
+type DiscoveredModel = {
+  modelId: string;
+  label: string;
+  metadata?: Record<string, unknown>;
+};
+
+function modelListRequest(providerId: ModelProviderId, baseUrl: string, apiKey: string) {
+  const headers: Record<string, string> = { accept: 'application/json' };
+  let url = `${baseUrl.replace(/\/$/, '')}/models`;
+  if (providerId === 'anthropic') {
+    const normalizedBaseUrl = baseUrl.replace(/\/$/, '');
+    url = `${normalizedBaseUrl.endsWith('/v1') ? normalizedBaseUrl : `${normalizedBaseUrl}/v1`}/models`;
+    headers['x-api-key'] = apiKey;
+    headers['anthropic-version'] = '2023-06-01';
+  } else if (providerId === 'google') {
+    url = 'https://generativelanguage.googleapis.com/v1beta/models';
+    headers['x-goog-api-key'] = apiKey;
+  } else {
+    headers.authorization = `Bearer ${apiKey}`;
+  }
+  return { url, headers };
+}
+
+function normalizeDiscoveredModelId(providerId: ModelProviderId, modelId: string) {
+  const normalized = modelId.trim().replace(/^models\//, '');
+  return normalized.startsWith(`${providerId}/`) ? normalized : `${providerId}/${normalized}`;
+}
+
+export function parseDiscoveredModels(providerId: ModelProviderId, payload: unknown): DiscoveredModel[] {
+  const body = payload as { data?: unknown; models?: unknown };
+  const entries = Array.isArray(body?.data)
+    ? body.data
+    : Array.isArray(body?.models)
+      ? body.models
+      : [];
+  const seen = new Set<string>();
+  const models: DiscoveredModel[] = [];
+  for (const entry of entries) {
+    if (!entry || typeof entry !== 'object') continue;
+    const item = entry as Record<string, unknown>;
+    const rawId = providerId === 'google'
+      ? item.baseModelId ?? item.name
+      : item.id ?? item.name;
+    if (typeof rawId !== 'string' || !rawId.trim()) continue;
+    const modelId = normalizeDiscoveredModelId(providerId, rawId);
+    if (seen.has(modelId)) continue;
+    seen.add(modelId);
+    models.push({
+      modelId,
+      label: String(item.display_name ?? item.displayName ?? item.id ?? rawId),
+      metadata: item,
+    });
+  }
+  return models;
+}
+
+export async function refreshModelProviderModels(env: Env, workspaceId: string, providerId: ModelProviderId) {
+  if (providerId === 'cloudflare') return [];
+  const token = await findProviderToken(env.DB, workspaceId, providerId);
+  if (!token) throw new Error(`no saved credentials for ${providerId}`);
+  const metadata = parseMetadata(token);
+  const catalogEntry = MODEL_PROVIDER_CATALOG.find((provider) => provider.id === providerId);
+  const baseUrl = metadata.base_url || catalogEntry?.baseUrl;
+  if (!baseUrl) throw new Error(`no model-list URL configured for ${providerId}`);
+  const { url, headers } = modelListRequest(
+    providerId,
+    baseUrl,
+    await decryptSecret(token.access_token, env.TOKEN_ENCRYPTION_KEY),
+  );
+  const response = await fetch(url, { headers, signal: AbortSignal.timeout(15000) });
+  if (!response.ok) throw new Error(`${providerId} model discovery failed (${response.status})`);
+  const models = parseDiscoveredModels(providerId, await response.json());
+  await replaceModelProviderModels(env.DB, workspaceId, providerId, models);
+  return models;
 }
 
 export async function upsertModelProviderCredential(env: Env, input: ModelProviderCredentialInput) {
@@ -158,6 +243,7 @@ export async function upsertModelProviderCredential(env: Env, input: ModelProvid
     }
   }
   const server = await ensureModelProviderServer(env.DB, input.workspaceId, input.providerId);
+  const providerIdentity = input.providerId;
   const token = await upsertOauthToken(env.DB, {
     userId: input.userId,
     workspaceId: input.workspaceId,
@@ -169,13 +255,20 @@ export async function upsertModelProviderCredential(env: Env, input: ModelProvid
     providerMetadata: {
       kind: 'model_provider',
       provider_id: input.providerId,
+      provider_identity: providerIdentity,
       custom_provider_id: input.customProviderId?.trim() || undefined,
       base_url: baseUrl,
       api,
       default_model: defaultModel,
     },
+    providerIdentity,
     isDefault: true,
   });
+  try {
+    await refreshModelProviderModels(env, input.workspaceId, input.providerId);
+  } catch {
+    // Credentials remain usable when a provider temporarily rejects discovery.
+  }
   return {
     id: token.id,
     provider_id: input.providerId,

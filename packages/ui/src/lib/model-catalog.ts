@@ -42,7 +42,7 @@ export const MODEL_CATALOG: ModelCatalogEntry[] = [
   { id: "google/gemini-2.5-pro", provider: "google", label: "Gemini 2.5 Pro", supportsReasoning: false, recommendedFor: "both" },
   { id: "google/gemini-2.5-flash", provider: "google", label: "Gemini 2.5 Flash", supportsReasoning: false, recommendedFor: "both" },
   { id: "openrouter/moonshotai/kimi-k2.6", provider: "openrouter", label: "Kimi K2.6 via OpenRouter", supportsReasoning: false, recommendedFor: "both" },
-  { id: "cloudflare/@cf/meta/llama-3.1-8b-instruct", provider: "cloudflare", label: "Llama 3.1 8B via Workers AI", supportsReasoning: false, recommendedFor: "agent" },
+  { id: "cloudflare/@cf/meta/llama-3.1-8b-instruct", provider: "cloudflare", label: "Llama 3.1 8B via Workers AI", supportsReasoning: false, recommendedFor: "both" },
   { id: "cloudflare/@cf/mistral/mistral-7b-instruct-v0.1", provider: "cloudflare", label: "Mistral 7B via Workers AI", supportsReasoning: false, recommendedFor: "agent" },
   { id: "cloudflare/@cf/moonshotai/kimi-k2.6", provider: "cloudflare", label: "Kimi K2.6 via AI Gateway", supportsReasoning: true, recommendedFor: "both" },
   { id: "custom/default", provider: "custom", label: "Custom default model", supportsReasoning: false, recommendedFor: "both" },

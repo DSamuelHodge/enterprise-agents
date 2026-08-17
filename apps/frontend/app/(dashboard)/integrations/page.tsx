@@ -41,6 +41,7 @@ export default function IntegrationsPage() {
     modelProvidersLoading,
     fetchModelProviders,
     deleteModelProviderConnection,
+    refreshModelProviderModels,
   } = useWorkspaceScopedActions();
   const { startOAuthFlow } = useOAuthFlow();
   const { currentUser } = useDatabaseWorkspace();
@@ -178,6 +179,9 @@ export default function IntegrationsPage() {
           onDelete={async (connectionId) => {
             if (!window.confirm("Remove this model provider connection?")) return;
             await deleteModelProviderConnection(connectionId);
+          }}
+          onRefresh={async (providerId) => {
+            await refreshModelProviderModels(providerId);
           }}
         />
 

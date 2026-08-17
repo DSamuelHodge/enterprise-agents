@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
 import { MODEL_PROVIDER_CATALOG } from '../src/shared/model-catalog.ts';
+import { serializeModelProviderConnection } from '../src/api/agents.ts';
+import { parseDiscoveredModels } from '../src/shared/model-routing.ts';
 
 const repoPath = (path: string) => resolve(import.meta.dirname, '..', path);
 
@@ -23,8 +25,24 @@ test('provider connections expose safe metadata and use the encrypted token path
   assert.match(api, /provider_label:/);
   assert.match(routing, /encryptSecret\(input\.apiKey\.trim\(\)/);
   assert.match(routing, /default_model must belong/);
-  assert.match(repos, /json_extract\(provider_metadata, '\$\.provider_id'\)/);
-  assert.match(api, /access_token.*not returned|access_token/);
+  assert.match(repos, /provider_identity/);
+  assert.match(repos, /ON CONFLICT\(workspace_id, provider_identity\)/);
+  const rows = [
+    {
+      id: 'connection-1', user_id: 'user-1', workspace_id: 'workspace-1', mcp_server_id: 'server-1',
+      auth_type: 'bearer' as const, access_token: 'encrypted-secret', refresh_token: null,
+      token_type: 'Bearer', token_name: 'Production', expires_at: null, scope: null,
+      resource_server: null, audience: null, is_default: 1, provider_metadata: JSON.stringify({
+        kind: 'model_provider', provider_id: 'openai', default_model: 'openai/gpt-5.4',
+      }), connected_at: '2026-01-01T00:00:00.000Z', last_refreshed_at: null,
+      created_at: '2026-01-01T00:00:00.000Z', updated_at: '2026-01-01T00:00:00.000Z', provider_identity: 'openai',
+    },
+  ];
+  const listedConnections = rows.map(serializeModelProviderConnection);
+  for (const connection of listedConnections) {
+    assert.equal(Object.prototype.hasOwnProperty.call(connection, 'access_token'), false);
+  }
+  assert.match(api, /connections: connections\.map\(serializeModelProviderConnection\)/);
 });
 
 test('the Worker explicitly registers Cloudflare AI Gateway', () => {
@@ -37,13 +55,29 @@ test('the Worker explicitly registers Cloudflare AI Gateway', () => {
   assert.match(wrangler, /"AI_GATEWAY_ID": "default"/);
 });
 
+test('provider model discovery accepts provider-native model lists', () => {
+  assert.deepEqual(
+    parseDiscoveredModels('openai', { data: [{ id: 'future-model' }, { id: 'future-model' }] }),
+    [{ modelId: 'openai/future-model', label: 'future-model', metadata: { id: 'future-model' } }],
+  );
+  assert.deepEqual(
+    parseDiscoveredModels('google', { models: [{ name: 'models/gemini-custom', displayName: 'Gemini Custom', baseModelId: 'gemini-custom' }] }),
+    [{ modelId: 'google/gemini-custom', label: 'Gemini Custom', metadata: { name: 'models/gemini-custom', displayName: 'Gemini Custom', baseModelId: 'gemini-custom' } }],
+  );
+});
+
 test('production deployment has a pull-request verification workflow', () => {
   const ci = readFileSync(repoPath('.github/workflows/ci.yml'), 'utf8');
   const deploy = readFileSync(repoPath('.github/workflows/deploy-cloudflare.yml'), 'utf8');
+  const migration = readFileSync(repoPath('migrations/0005_provider_identity_and_model_cache.sql'), 'utf8');
 
   assert.match(ci, /pull_request:/);
+  assert.match(ci, /persist-credentials: false/);
   assert.match(ci, /pnpm test/);
   assert.match(ci, /pnpm build:backend/);
   assert.match(ci, /pnpm build:frontend/);
   assert.match(deploy, /pnpm test/);
+  assert.match(migration, /provider_identity TEXT/);
+  assert.match(migration, /ux_uoc_workspace_provider_identity/);
+  assert.match(migration, /row_number\(\)/);
 });

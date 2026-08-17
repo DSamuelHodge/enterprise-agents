@@ -136,6 +136,16 @@ export interface UserOauthConnectionRow {
   last_refreshed_at: string | null;
   created_at: string;
   updated_at: string;
+  provider_identity: string | null;
+}
+
+export interface ModelProviderModelRow {
+  workspace_id: string;
+  provider_id: string;
+  model_id: string;
+  label: string;
+  metadata: string;
+  fetched_at: string;
 }
 
 export type TaskStatus = 'in_progress' | 'in_review' | 'closed' | 'completed' | 'failed' | 'cancelled';

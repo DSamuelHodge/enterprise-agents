@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { Label } from "@workspace/ui/components/ui/label";
 import { AgentToolsManager } from "./agent-tools-manager";
+import type { ModelProvidersResult } from "@/hooks/use-workspace-scoped-actions";
 import {
   AgentConfigurationForm,
   type AgentConfigData,
@@ -25,6 +26,7 @@ interface AgentSetupTabProps {
   isSaving: boolean;
   workspaceId: string;
   onAgentUpdated?: () => void;
+  modelProviders: ModelProvidersResult;
 }
 
 export function AgentSetupTab({
@@ -32,9 +34,14 @@ export function AgentSetupTab({
   draft,
   onChange,
   workspaceId,
+  modelProviders,
 }: AgentSetupTabProps) {
   const [nameError, setNameError] = useState("");
   const isReadOnly = agent?.status === "published";
+  const modelOptions = useMemo(
+    () => modelProviders.providers.flatMap((provider) => provider.models ?? []),
+    [modelProviders.providers],
+  );
 
   const handleNameValidation = useCallback(
     (isValid: boolean, error: string) => {
@@ -57,6 +64,7 @@ export function AgentSetupTab({
         validateName={true}
         nameError={nameError}
         onNameValidation={handleNameValidation}
+        modelOptions={modelOptions.length > 0 ? modelOptions : undefined}
       />
 
       {/* Tools Section */}

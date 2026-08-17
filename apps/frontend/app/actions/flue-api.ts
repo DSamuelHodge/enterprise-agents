@@ -225,6 +225,8 @@ export async function executeFlueWorkflow(workflowName: string, input: WorkflowI
       return request(`/workspaces/${workspaceId(input)}/model-providers`);
     case "ModelProviderConnectionCreateWorkflow":
       return request(`/workspaces/${workspaceId(input)}/model-provider-connections`, { method: "POST", body: body(input) });
+    case "ModelProviderModelsRefreshWorkflow":
+      return request(`/workspaces/${workspaceId(input)}/model-providers/${input.provider_id}/models/refresh`, { method: "POST" });
     case "ModelProviderConnectionDeleteWorkflow":
       return request(`/workspaces/${workspaceId(input)}/oauth-connections/${input.connection_id || input.token_id}`, { method: "DELETE" });
 

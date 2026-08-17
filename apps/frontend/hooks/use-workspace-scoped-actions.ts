@@ -187,6 +187,7 @@ export interface ModelProviderStatus {
   server_id?: string | null;
   base_url?: string | null;
   models?: Array<{ value: string; label: string }>;
+  models_fetched_at?: string | null;
 }
 
 export interface ModelProvidersResult {
@@ -1305,6 +1306,21 @@ export function useWorkspaceScopedActions() {
     [currentWorkspaceId, fetchModelProviders, isReady],
   );
 
+  const refreshModelProviderModels = useCallback(
+    async (providerId: string) => {
+      if (!isReady || !currentWorkspaceId) {
+        return { success: false, error: "No valid workspace context" };
+      }
+      const result = await executeWorkflow<{ models: Array<{ value: string; label: string }> }>(
+        "ModelProviderModelsRefreshWorkflow",
+        { workspace_id: currentWorkspaceId, provider_id: providerId },
+      );
+      if (result.success) await fetchModelProviders();
+      return result;
+    },
+    [currentWorkspaceId, executeWorkflow, fetchModelProviders, isReady],
+  );
+
   const deleteModelProviderConnection = useCallback(
     async (connectionId: string) => {
       if (!isReady || !currentWorkspaceId) {
@@ -1571,6 +1587,7 @@ export function useWorkspaceScopedActions() {
     modelProvidersLoading,
     fetchModelProviders,
     createModelProviderConnection,
+    refreshModelProviderModels,
     deleteModelProviderConnection,
     hasRunnableModelProvider,
     createMcpServer,

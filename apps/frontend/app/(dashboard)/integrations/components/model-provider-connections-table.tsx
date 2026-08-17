@@ -10,7 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@workspace/ui/components/ui/table";
-import { Cloud, Key, Plus, Star, Trash2 } from "lucide-react";
+import { Cloud, Key, Plus, RefreshCw, Star, Trash2 } from "lucide-react";
 import type {
   ModelProviderConnection,
   ModelProviderStatus,
@@ -21,6 +21,7 @@ interface ModelProviderConnectionsTableProps {
   connections: ModelProviderConnection[];
   onAdd: () => void;
   onDelete: (connectionId: string) => void;
+  onRefresh: (providerId: string) => void | Promise<void>;
 }
 
 export function ModelProviderConnectionsTable({
@@ -28,6 +29,7 @@ export function ModelProviderConnectionsTable({
   connections,
   onAdd,
   onDelete,
+  onRefresh,
 }: ModelProviderConnectionsTableProps) {
   const providerById = new Map(providers.map((provider) => [provider.provider_id, provider]));
   const managedCloudflare = providerById.get("cloudflare");
@@ -100,9 +102,17 @@ export function ModelProviderConnectionsTable({
                   </TableCell>
                   <TableCell>{connection.default_model ?? "Provider default"}</TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
                       <Badge variant="default">Ready</Badge>
                       {connection.is_default && <Star className="h-4 w-4 text-yellow-600" aria-label="Default connection" />}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onRefresh(connection.provider_id)}
+                        aria-label={`Refresh ${connection.provider_label ?? connection.provider_id} models`}
+                      >
+                        <RefreshCw className="h-4 w-4" />
+                      </Button>
                     </div>
                   </TableCell>
                   <TableCell>
