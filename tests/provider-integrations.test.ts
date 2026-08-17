@@ -3,10 +3,38 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
 import { MODEL_PROVIDER_CATALOG } from '../src/shared/model-catalog.ts';
-import { serializeModelProviderConnection } from '../src/api/agents.ts';
+import agents from '../src/api/agents.ts';
 import { parseDiscoveredModels } from '../src/shared/model-routing.ts';
 
 const repoPath = (path: string) => resolve(import.meta.dirname, '..', path);
+
+function createModelProviderRouteDb(connection: Record<string, unknown>) {
+  const server = {
+    id: 'server-1', workspace_id: 'workspace-1', server_label: 'OpenAI', server_url: null,
+    local: 1, server_description: null, headers: null, require_approval: null,
+    created_at: '2026-01-01T00:00:00.000Z', updated_at: '2026-01-01T00:00:00.000Z',
+  };
+  return {
+    prepare(sql: string) {
+      return {
+        bind(..._binds: unknown[]) {
+          return {
+            async first<T>() {
+              if (sql.includes('FROM user_workspaces')) return { user_id: 'user-1', workspace_id: 'workspace-1', role: 'owner' } as T;
+              if (sql.includes('FROM mcp_servers')) return server as T;
+              return null;
+            },
+            async all<T>() {
+              if (sql.includes('FROM mcp_servers')) return { results: [server] as T[] };
+              if (sql.includes('FROM user_oauth_connections')) return { results: [connection] as T[] };
+              return { results: [] as T[] };
+            },
+          };
+        },
+      };
+    },
+  } as unknown as D1Database;
+}
 
 test('Cloudflare is a managed AI Gateway provider with no workspace key requirement', () => {
   const provider = MODEL_PROVIDER_CATALOG.find((entry) => entry.id === 'cloudflare');
@@ -16,7 +44,7 @@ test('Cloudflare is a managed AI Gateway provider with no workspace key requirem
   assert.ok(provider.models.some((model) => model.id === 'cloudflare/@cf/moonshotai/kimi-k2.6'));
 });
 
-test('provider connections expose safe metadata and use the encrypted token path', () => {
+test('provider connections expose safe metadata and use the encrypted token path', async () => {
   const api = readFileSync(repoPath('src/api/agents.ts'), 'utf8');
   const routing = readFileSync(repoPath('src/shared/model-routing.ts'), 'utf8');
   const repos = readFileSync(repoPath('src/db/repos/agents.ts'), 'utf8');
@@ -38,8 +66,12 @@ test('provider connections expose safe metadata and use the encrypted token path
       created_at: '2026-01-01T00:00:00.000Z', updated_at: '2026-01-01T00:00:00.000Z', provider_identity: 'openai',
     },
   ];
-  const listedConnections = rows.map(serializeModelProviderConnection);
-  for (const connection of listedConnections) {
+  const response = await agents.request('/workspaces/workspace-1/model-providers', {}, {
+    DB: createModelProviderRouteDb(rows[0]),
+  } as never);
+  assert.equal(response.status, 200);
+  const body = await response.json() as { connections: Array<Record<string, unknown>> };
+  for (const connection of body.connections) {
     assert.equal(Object.prototype.hasOwnProperty.call(connection, 'access_token'), false);
   }
   assert.match(api, /connections: connections\.map\(serializeModelProviderConnection\)/);
